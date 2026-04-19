@@ -3,6 +3,7 @@ package com.example.flux.core.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.example.flux.core.database.entity.CalendarEventEntity
+import com.example.flux.core.database.entity.CalendarHolidayOverrideEntity
 import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.DiaryTagEntity
 import com.example.flux.core.database.entity.DiaryTagLinkEntity
@@ -16,10 +17,10 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
         DiaryTagLinkEntity::class,
         TodoEntity::class,
         TodoSubtaskEntity::class,
-        CalendarEventEntity::class
-        // TODO: add holiday entities and other auxiliary tables
+        CalendarEventEntity::class,
+        CalendarHolidayOverrideEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class FluxDatabase : RoomDatabase() {
@@ -27,4 +28,5 @@ abstract class FluxDatabase : RoomDatabase() {
     abstract fun todoDao(): com.example.flux.core.database.dao.TodoDao
     abstract fun todoSubtaskDao(): com.example.flux.core.database.dao.TodoSubtaskDao
     abstract fun eventDao(): com.example.flux.core.database.dao.EventDao
+    abstract fun holidayDao(): com.example.flux.core.database.dao.HolidayDao
 }

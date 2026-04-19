@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,6 +46,8 @@ fun CalendarScreen(
     val showDiaries by viewModel.showDiaries.collectAsState()
     val showTodos by viewModel.showTodos.collectAsState()
     val showHolidays by viewModel.showHolidays.collectAsState()
+    val holidayEditMode by viewModel.holidayEditMode.collectAsState()
+    val holidayOverrides by viewModel.holidayOverrides.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val selectedDateDetails by viewModel.selectedDateDetails.collectAsState()
 
@@ -72,34 +75,48 @@ fun CalendarScreen(
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
             // Layer Toggles
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(
-                    selected = showDiaries,
-                    onClick = viewModel::toggleShowDiaries,
-                    label = { Text("日记") },
-                    leadingIcon = {
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxDiaryYellow))
-                    }
-                )
-                FilterChip(
-                    selected = showHolidays,
-                    onClick = viewModel::toggleShowHolidays,
-                    label = { Text("假期") },
-                    leadingIcon = {
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxHolidayOrange))
-                    }
-                )
-                FilterChip(
-                    selected = showTodos,
-                    onClick = viewModel::toggleShowTodos,
-                    label = { Text("待办") },
-                    leadingIcon = {
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxTodoRed))
-                    }
-                )
+                item {
+                    FilterChip(
+                        selected = showDiaries,
+                        onClick = viewModel::toggleShowDiaries,
+                        label = { Text("日记") },
+                        leadingIcon = {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxDiaryYellow))
+                        }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = showHolidays,
+                        onClick = viewModel::toggleShowHolidays,
+                        label = { Text("假期") },
+                        leadingIcon = {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxHolidayOrange))
+                        }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = holidayEditMode,
+                        onClick = viewModel::toggleHolidayEditMode,
+                        label = { Text("标记") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = showTodos,
+                        onClick = viewModel::toggleShowTodos,
+                        label = { Text("待办") },
+                        leadingIcon = {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxTodoRed))
+                        }
+                    )
+                }
             }
 
             // Weekday Header
@@ -141,6 +158,9 @@ fun CalendarScreen(
                         val day = index - startOffset + 1
                         val dateString = currentMonth.dateString(day)
                         val aggregation = data[dateString]
+                        val defaultHoliday = currentMonth.isWeekend(day)
+                        val holidayOverride = holidayOverrides[dateString]
+                        val isHoliday = holidayOverride?.isHoliday ?: defaultHoliday
                         
                         CalendarGridCell(
                             day = day,
@@ -148,8 +168,10 @@ fun CalendarScreen(
                             showDiaries = showDiaries,
                             showTodos = showTodos,
                             showHolidays = showHolidays,
-                            isHoliday = currentMonth.isWeekend(day),
-                            onClick = { viewModel.selectDate(dateString) }
+                            isHoliday = isHoliday,
+                            isHolidayOverride = holidayOverride != null,
+                            holidayEditMode = holidayEditMode,
+                            onClick = { viewModel.onDateClicked(dateString, defaultHoliday) }
                         )
                     }
                 }
@@ -166,11 +188,11 @@ fun CalendarScreen(
                     )
 
                     selectedDateDetails?.let { details ->
-                        if (details.isHoliday) {
+                        if (details.holidayLabel != null) {
                             Text(
-                                text = details.holidayLabel ?: "假期",
+                                text = details.holidayLabel,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = FluxHolidayOrange,
+                                color = if (details.isHoliday) FluxHolidayOrange else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
                         }
@@ -240,15 +262,22 @@ fun CalendarGridCell(
     showTodos: Boolean,
     showHolidays: Boolean,
     isHoliday: Boolean,
+    isHolidayOverride: Boolean,
+    holidayEditMode: Boolean,
     onClick: () -> Unit
 ) {
     val renderHoliday = showHolidays && isHoliday
+    val renderManualWorkday = showHolidays && isHolidayOverride && !isHoliday
     Box(
         modifier = Modifier
             .aspectRatio(0.7f) // taller than wide
             .padding(0.5.dp)
             .background(
-                if (renderHoliday) FluxHolidayOrange.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface
+                when {
+                    renderHoliday -> FluxHolidayOrange.copy(alpha = 0.14f)
+                    holidayEditMode -> MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                    else -> MaterialTheme.colorScheme.surface
+                }
             )
             .clickable(onClick = onClick)
             .padding(4.dp)
@@ -263,9 +292,16 @@ fun CalendarGridCell(
 
             if (renderHoliday) {
                 Text(
-                    text = "假",
+                    text = if (isHolidayOverride) "休" else "假",
                     style = MaterialTheme.typography.labelSmall,
                     color = FluxHolidayOrange,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            } else if (renderManualWorkday) {
+                Text(
+                    text = "班",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             }

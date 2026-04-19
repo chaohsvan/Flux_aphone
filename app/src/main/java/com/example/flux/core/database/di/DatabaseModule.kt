@@ -48,4 +48,9 @@ object DatabaseModule {
     fun provideEventDao(database: FluxDatabase): com.example.flux.core.database.dao.EventDao {
         return database.eventDao()
     }
+
+    @Provides
+    fun provideHolidayDao(database: FluxDatabase): com.example.flux.core.database.dao.HolidayDao {
+        return database.holidayDao()
+    }
 }

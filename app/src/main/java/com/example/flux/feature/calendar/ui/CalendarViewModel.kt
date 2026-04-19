@@ -7,6 +7,7 @@ import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.repository.DiaryRepository
 import com.example.flux.core.database.repository.EventRepository
+import com.example.flux.core.database.repository.HolidayRepository
 import com.example.flux.core.database.repository.TodoRepository
 import com.example.flux.core.domain.calendar.CalendarAggregatorUseCase
 import com.example.flux.core.domain.calendar.DailyAggregation
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -92,12 +94,18 @@ data class CalendarDateDetails(
     val holidayLabel: String? = null
 )
 
+data class HolidayOverrideState(
+    val isHoliday: Boolean,
+    val label: String?
+)
+
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
     calendarAggregatorUseCase: CalendarAggregatorUseCase,
     private val diaryRepository: DiaryRepository,
     private val todoRepository: TodoRepository,
-    private val eventRepository: EventRepository
+    private val eventRepository: EventRepository,
+    private val holidayRepository: HolidayRepository
 ) : ViewModel() {
 
     private val _currentMonth = MutableStateFlow(CalendarMonth.current())
@@ -119,6 +127,24 @@ class CalendarViewModel @Inject constructor(
     private val _showHolidays = MutableStateFlow(true)
     val showHolidays = _showHolidays.asStateFlow()
 
+    private val _holidayEditMode = MutableStateFlow(false)
+    val holidayEditMode = _holidayEditMode.asStateFlow()
+
+    val holidayOverrides: StateFlow<Map<String, HolidayOverrideState>> = holidayRepository.getHolidayOverrides()
+        .map { overrides ->
+            overrides.associate { override ->
+                override.date to HolidayOverrideState(
+                    isHoliday = override.isHoliday == 1,
+                    label = override.label
+                )
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+
     private val _selectedDate = MutableStateFlow<String?>(null)
     val selectedDate = _selectedDate.asStateFlow()
 
@@ -131,15 +157,18 @@ class CalendarViewModel @Inject constructor(
                 combine(
                     diaryRepository.getDiaryFlowByDate(date),
                     todoRepository.getTodosByDate(date),
-                    eventRepository.getEventsByDate(date)
-                ) { diary, todos, events ->
-                    val isHoliday = isWeekend(date)
+                    eventRepository.getEventsByDate(date),
+                    holidayOverrides
+                ) { diary, todos, events, overrides ->
+                    val defaultHoliday = isWeekend(date)
+                    val override = overrides[date]
+                    val isHoliday = override?.isHoliday ?: defaultHoliday
                     CalendarDateDetails(
                         diary = diary,
                         todos = todos,
                         events = events,
                         isHoliday = isHoliday,
-                        holidayLabel = if (isHoliday) "周末假期" else null
+                        holidayLabel = override?.label ?: if (defaultHoliday) "周末假期" else null
                     )
                 }
             }
@@ -162,8 +191,22 @@ class CalendarViewModel @Inject constructor(
         _showHolidays.update { !it }
     }
 
+    fun toggleHolidayEditMode() {
+        _holidayEditMode.update { !it }
+    }
+
     fun selectDate(date: String?) {
         _selectedDate.value = date
+    }
+
+    fun onDateClicked(date: String, defaultIsHoliday: Boolean) {
+        if (_holidayEditMode.value) {
+            viewModelScope.launch {
+                holidayRepository.toggleHolidayOverride(date, defaultIsHoliday)
+            }
+        } else {
+            selectDate(date)
+        }
     }
 
     fun nextMonth() {
