@@ -1,26 +1,37 @@
 package com.example.flux.feature.todo.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,7 +51,9 @@ fun TodoScreen(
 ) {
     val todos by viewModel.todos.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
+    val filterState by viewModel.filterState.collectAsState()
     var showAddSheet by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -52,6 +66,12 @@ fun TodoScreen(
                         }
                     },
                     actions = {
+                        TextButton(onClick = { viewModel.selectAllVisible() }) {
+                            Text("全选")
+                        }
+                        TextButton(onClick = { viewModel.invertVisibleSelection() }) {
+                            Text("反选")
+                        }
                         if (selectedIds.size == 1) {
                             val selectedId = selectedIds.first()
                             IconButton(onClick = { viewModel.moveTodoOrder(selectedId, moveUp = true) }) {
@@ -76,7 +96,31 @@ fun TodoScreen(
                     )
                 )
             } else {
-                TopAppBar(title = { Text("待办事项") })
+                Column {
+                    TopAppBar(title = { Text("待办事项") })
+                    OutlinedTextField(
+                        value = filterState.query,
+                        onValueChange = viewModel::updateSearchQuery,
+                        placeholder = { Text("搜索待办...") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        trailingIcon = {
+                            TextButton(onClick = { showFilterSheet = true }) {
+                                Text(
+                                    text = "筛选",
+                                    color = if (filterState.hasActiveFilters) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+                        }
+                    )
+                }
             }
         },
         floatingActionButton = {
@@ -87,10 +131,12 @@ fun TodoScreen(
     ) { paddingValues ->
         if (todos.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "所有任务均已完成，或者暂无任务。")
+                Text(text = if (filterState.hasActiveFilters) "没有符合筛选条件的待办" else "暂无待办")
             }
         } else {
             LazyColumn(
@@ -122,6 +168,19 @@ fun TodoScreen(
         }
     }
 
+    if (showFilterSheet) {
+        TodoFilterSheet(
+            filterState = filterState,
+            onStatusChange = viewModel::setStatusFilter,
+            onPriorityChange = viewModel::setPriorityFilter,
+            onTimeChange = viewModel::setTimeFilter,
+            onCustomStartDateChange = viewModel::updateCustomStartDate,
+            onCustomEndDateChange = viewModel::updateCustomEndDate,
+            onClear = viewModel::clearFilters,
+            onDismiss = { showFilterSheet = false }
+        )
+    }
+
     if (showAddSheet) {
         TodoInputSheet(
             onDismiss = { showAddSheet = false },
@@ -131,4 +190,105 @@ fun TodoScreen(
             }
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TodoFilterSheet(
+    filterState: TodoFilterState,
+    onStatusChange: (TodoStatusFilter) -> Unit,
+    onPriorityChange: (TodoPriorityFilter) -> Unit,
+    onTimeChange: (TodoTimeFilter) -> Unit,
+    onCustomStartDateChange: (String) -> Unit,
+    onCustomEndDateChange: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("筛选待办", style = MaterialTheme.typography.titleLarge)
+                TextButton(onClick = onClear) {
+                    Text("清除")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("状态", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow {
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.ALL, "全部") { onStatusChange(TodoStatusFilter.ALL) } }
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.PENDING, "待办") { onStatusChange(TodoStatusFilter.PENDING) } }
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.IN_PROGRESS, "进行中") { onStatusChange(TodoStatusFilter.IN_PROGRESS) } }
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.COMPLETED, "完成") { onStatusChange(TodoStatusFilter.COMPLETED) } }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("优先级", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow {
+                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.ALL, "全部") { onPriorityChange(TodoPriorityFilter.ALL) } }
+                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.NORMAL, "普通") { onPriorityChange(TodoPriorityFilter.NORMAL) } }
+                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.HIGH, "高优先级") { onPriorityChange(TodoPriorityFilter.HIGH) } }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("时间", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow {
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.ALL, "全部") { onTimeChange(TodoTimeFilter.ALL) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.TODAY, "今天") { onTimeChange(TodoTimeFilter.TODAY) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.UPCOMING, "近期") { onTimeChange(TodoTimeFilter.UPCOMING) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.OVERDUE, "逾期") { onTimeChange(TodoTimeFilter.OVERDUE) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.SCHEDULED, "定时") { onTimeChange(TodoTimeFilter.SCHEDULED) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.CUSTOM, "自定义") { onTimeChange(TodoTimeFilter.CUSTOM) } }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = filterState.customStartDate,
+                    onValueChange = onCustomStartDateChange,
+                    label = { Text("开始日期") },
+                    placeholder = { Text("YYYY-MM-DD") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = filterState.customEndDate,
+                    onValueChange = onCustomEndDateChange,
+                    label = { Text("结束日期") },
+                    placeholder = { Text("YYYY-MM-DD") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun TodoFilterChip(
+    selected: Boolean,
+    label: String,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        modifier = Modifier.padding(end = 8.dp)
+    )
 }
