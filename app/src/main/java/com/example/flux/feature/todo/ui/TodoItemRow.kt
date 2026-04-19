@@ -71,7 +71,25 @@ fun TodoItemRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                TodoMetaLine(todo)
             }
         }
+    }
+}
+
+@Composable
+private fun TodoMetaLine(todo: TodoEntity) {
+    val metadata = listOfNotNull(
+        todo.startAt?.let { "开始 $it" },
+        todo.dueAt?.let { "截止 $it" },
+        todo.reminderMinutes?.let { "提前 ${it} 分钟提醒" }
+    )
+
+    if (metadata.isNotEmpty()) {
+        Text(
+            text = metadata.joinToString("  "),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
