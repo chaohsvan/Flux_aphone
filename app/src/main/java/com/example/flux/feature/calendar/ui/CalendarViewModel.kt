@@ -63,6 +63,16 @@ data class CalendarMonth(
         return String.format(Locale.US, "%04d-%02d-%02d", year, month, day)
     }
 
+    fun isWeekend(day: Int): Boolean {
+        val dayOfWeek = Calendar.getInstance().apply {
+            clear()
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month - 1)
+            set(Calendar.DAY_OF_MONTH, day)
+        }.get(Calendar.DAY_OF_WEEK)
+        return dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY
+    }
+
     companion object {
         fun current(): CalendarMonth {
             val calendar = Calendar.getInstance()
@@ -77,7 +87,9 @@ data class CalendarMonth(
 data class CalendarDateDetails(
     val diary: DiaryEntity? = null,
     val todos: List<TodoEntity> = emptyList(),
-    val events: List<CalendarEventEntity> = emptyList()
+    val events: List<CalendarEventEntity> = emptyList(),
+    val isHoliday: Boolean = false,
+    val holidayLabel: String? = null
 )
 
 @HiltViewModel
@@ -104,6 +116,9 @@ class CalendarViewModel @Inject constructor(
     private val _showTodos = MutableStateFlow(false)
     val showTodos = _showTodos.asStateFlow()
 
+    private val _showHolidays = MutableStateFlow(true)
+    val showHolidays = _showHolidays.asStateFlow()
+
     private val _selectedDate = MutableStateFlow<String?>(null)
     val selectedDate = _selectedDate.asStateFlow()
 
@@ -118,7 +133,14 @@ class CalendarViewModel @Inject constructor(
                     todoRepository.getTodosByDate(date),
                     eventRepository.getEventsByDate(date)
                 ) { diary, todos, events ->
-                    CalendarDateDetails(diary, todos, events)
+                    val isHoliday = isWeekend(date)
+                    CalendarDateDetails(
+                        diary = diary,
+                        todos = todos,
+                        events = events,
+                        isHoliday = isHoliday,
+                        holidayLabel = if (isHoliday) "周末假期" else null
+                    )
                 }
             }
         }
@@ -134,6 +156,10 @@ class CalendarViewModel @Inject constructor(
 
     fun toggleShowTodos() {
         _showTodos.update { !it }
+    }
+
+    fun toggleShowHolidays() {
+        _showHolidays.update { !it }
     }
 
     fun selectDate(date: String?) {
@@ -175,5 +201,19 @@ class CalendarViewModel @Inject constructor(
         viewModelScope.launch {
             eventRepository.softDeleteEvent(id)
         }
+    }
+
+    private fun isWeekend(date: String): Boolean {
+        if (date.length < 10) return false
+        val year = date.substring(0, 4).toIntOrNull() ?: return false
+        val month = date.substring(5, 7).toIntOrNull() ?: return false
+        val day = date.substring(8, 10).toIntOrNull() ?: return false
+        val dayOfWeek = Calendar.getInstance().apply {
+            clear()
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month - 1)
+            set(Calendar.DAY_OF_MONTH, day)
+        }.get(Calendar.DAY_OF_WEEK)
+        return dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY
     }
 }

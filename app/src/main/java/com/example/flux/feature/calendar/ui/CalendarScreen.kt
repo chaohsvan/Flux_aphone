@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.flux.core.domain.calendar.DailyAggregation
 import com.example.flux.ui.theme.FluxDiaryYellow
+import com.example.flux.ui.theme.FluxHolidayOrange
 import com.example.flux.ui.theme.FluxTodoRed
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +44,7 @@ fun CalendarScreen(
     val currentMonth by viewModel.currentMonth.collectAsState()
     val showDiaries by viewModel.showDiaries.collectAsState()
     val showTodos by viewModel.showTodos.collectAsState()
+    val showHolidays by viewModel.showHolidays.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val selectedDateDetails by viewModel.selectedDateDetails.collectAsState()
 
@@ -80,6 +82,14 @@ fun CalendarScreen(
                     label = { Text("日记") },
                     leadingIcon = {
                         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxDiaryYellow))
+                    }
+                )
+                FilterChip(
+                    selected = showHolidays,
+                    onClick = viewModel::toggleShowHolidays,
+                    label = { Text("假期") },
+                    leadingIcon = {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxHolidayOrange))
                     }
                 )
                 FilterChip(
@@ -137,6 +147,8 @@ fun CalendarScreen(
                             aggregation = aggregation,
                             showDiaries = showDiaries,
                             showTodos = showTodos,
+                            showHolidays = showHolidays,
+                            isHoliday = currentMonth.isWeekend(day),
                             onClick = { viewModel.selectDate(dateString) }
                         )
                     }
@@ -154,6 +166,15 @@ fun CalendarScreen(
                     )
 
                     selectedDateDetails?.let { details ->
+                        if (details.isHoliday) {
+                            Text(
+                                text = details.holidayLabel ?: "假期",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = FluxHolidayOrange,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                        }
+
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("事件", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             IconButton(onClick = { showEventInputSheet = true }) {
@@ -217,13 +238,18 @@ fun CalendarGridCell(
     aggregation: DailyAggregation?, 
     showDiaries: Boolean,
     showTodos: Boolean,
+    showHolidays: Boolean,
+    isHoliday: Boolean,
     onClick: () -> Unit
 ) {
+    val renderHoliday = showHolidays && isHoliday
     Box(
         modifier = Modifier
             .aspectRatio(0.7f) // taller than wide
             .padding(0.5.dp)
-            .background(MaterialTheme.colorScheme.surface)
+            .background(
+                if (renderHoliday) FluxHolidayOrange.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface
+            )
             .clickable(onClick = onClick)
             .padding(4.dp)
     ) {
@@ -231,9 +257,18 @@ fun CalendarGridCell(
             Text(
                 text = day.toString(),
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (renderHoliday) FluxHolidayOrange else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
+
+            if (renderHoliday) {
+                Text(
+                    text = "假",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = FluxHolidayOrange,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
             
             Spacer(modifier = Modifier.weight(1f))
             
