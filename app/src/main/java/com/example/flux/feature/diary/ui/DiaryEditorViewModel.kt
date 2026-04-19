@@ -24,6 +24,7 @@ data class DiaryEditorUiState(
     val weather: String? = null,
     val locationName: String? = null,
     val isFavorite: Boolean = false,
+    val tagText: String = "",
     val createdAt: String? = null,
     val version: Int = 1,
     val isLoading: Boolean = false
@@ -58,6 +59,7 @@ class DiaryEditorViewModel @Inject constructor(
         viewModelScope.launch {
             val diary = diaryRepository.getDiaryById(id)
             if (diary != null) {
+                val tags = diaryRepository.getTagsForDiary(id).joinToString(", ") { it.name }
                 _uiState.update {
                     it.copy(
                         id = diary.id,
@@ -69,6 +71,7 @@ class DiaryEditorViewModel @Inject constructor(
                         weather = diary.weather,
                         locationName = diary.locationName,
                         isFavorite = diary.isFavorite == 1,
+                        tagText = tags,
                         createdAt = diary.createdAt,
                         version = diary.version,
                         isLoading = false
@@ -106,6 +109,10 @@ class DiaryEditorViewModel @Inject constructor(
         _uiState.update { it.copy(locationName = newLocation.ifBlank { null }) }
     }
 
+    fun updateTagText(newTagText: String) {
+        _uiState.update { it.copy(tagText = newTagText) }
+    }
+
     fun toggleFavorite() {
         _uiState.update { it.copy(isFavorite = !it.isFavorite) }
     }
@@ -139,7 +146,7 @@ class DiaryEditorViewModel @Inject constructor(
                 restoredAt = null,
                 restoredIntoId = null
             )
-            diaryRepository.saveDiary(entity)
+            diaryRepository.saveDiary(entity, parseTags(currentState.tagText))
         }
     }
 
@@ -155,5 +162,14 @@ class DiaryEditorViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun parseTags(tagText: String): List<String> {
+        return tagText
+            .split(Regex("[,;#\\s\\uFF0C\\uFF1B\\u3001]+"))
+            .map { it.trim().trimStart('#').take(24) }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .take(12)
     }
 }

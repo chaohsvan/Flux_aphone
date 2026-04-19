@@ -96,6 +96,7 @@ fun DiaryEditorScreen(
                     onMoodChange = viewModel::updateMood,
                     onWeatherChange = viewModel::updateWeather,
                     onLocationChange = viewModel::updateLocation,
+                    onTagTextChange = viewModel::updateTagText,
                     onFavoriteToggle = viewModel::toggleFavorite
                 )
 
@@ -140,6 +141,7 @@ private fun DiaryMetadataEditor(
     onMoodChange: (String?) -> Unit,
     onWeatherChange: (String) -> Unit,
     onLocationChange: (String) -> Unit,
+    onTagTextChange: (String) -> Unit,
     onFavoriteToggle: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -179,6 +181,17 @@ private fun DiaryMetadataEditor(
                 modifier = Modifier.weight(1f)
             )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = uiState.tagText,
+            onValueChange = onTagTextChange,
+            label = { Text("\u6807\u7b7e") },
+            placeholder = { Text("\u7528\u9017\u53f7\u5206\u9694") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 

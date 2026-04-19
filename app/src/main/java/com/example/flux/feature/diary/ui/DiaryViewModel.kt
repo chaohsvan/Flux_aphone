@@ -22,7 +22,8 @@ import com.example.flux.core.domain.diary.ExportDiariesUseCase
 
 data class DiaryFilterOptions(
     val months: List<String> = emptyList(),
-    val years: List<String> = emptyList()
+    val years: List<String> = emptyList(),
+    val tags: List<String> = emptyList()
 )
 
 @HiltViewModel
@@ -46,25 +47,40 @@ class DiaryViewModel @Inject constructor(
     private val _yearFilter = MutableStateFlow<String?>(null)
     val yearFilter = _yearFilter.asStateFlow()
 
+    private val _tagFilter = MutableStateFlow<String?>(null)
+    val tagFilter = _tagFilter.asStateFlow()
+
     private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedIds = _selectedIds.asStateFlow()
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val diaries: StateFlow<List<DiaryEntity>> = combine(
+    private val rawFilters = combine(
         _searchQuery,
         _isFavoriteFilter,
         _moodFilter,
         _monthFilter,
         _yearFilter
     ) { query, isFav, mood, month, year ->
-        DiaryFilters(query, isFav, mood, month, year)
+        DiaryFilters(query, isFav, mood, month, year, null)
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val diaries: StateFlow<List<DiaryEntity>> = combine(rawFilters, _tagFilter) { filters, tag ->
+        filters.copy(tag = tag)
     }.flatMapLatest { filters ->
         val baseFlow = if (filters.query.isBlank()) {
             diaryRepository.getActiveDiaries()
         } else {
             diaryRepository.searchDiaries(filters.query)
         }
-        baseFlow.map { list ->
+        val taggedFlow = if (filters.tag == null) {
+            baseFlow
+        } else {
+            combine(baseFlow, diaryRepository.getDiaryIdsForTag(filters.tag)) { list, ids ->
+                val idSet = ids.toSet()
+                list.filter { it.id in idSet }
+            }
+        }
+        taggedFlow.map { list ->
             list.filter { diary ->
                 val matchFav = !filters.isFavorite || diary.isFavorite == 1
                 val matchMood = filters.mood == null || diary.mood == filters.mood
@@ -79,11 +95,25 @@ class DiaryViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    val filterOptions: StateFlow<DiaryFilterOptions> = diaryRepository.getActiveDiaries()
-        .map { diaries ->
+    val diaryTags: StateFlow<Map<String, List<String>>> = diaryRepository.getActiveDiaryTagSummaries()
+        .map { rows ->
+            rows.groupBy { it.diaryId }
+                .mapValues { entry -> entry.value.map { it.tagName }.distinct() }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+
+    val filterOptions: StateFlow<DiaryFilterOptions> = combine(
+        diaryRepository.getActiveDiaries(),
+        diaryRepository.getActiveTags()
+    ) { diaries, tags ->
             DiaryFilterOptions(
                 months = diaries.mapNotNull { it.entryDate.takeIf { date -> date.length >= 7 }?.take(7) }.distinct().sortedDescending(),
-                years = diaries.mapNotNull { it.entryDate.takeIf { date -> date.length >= 4 }?.take(4) }.distinct().sortedDescending()
+                years = diaries.mapNotNull { it.entryDate.takeIf { date -> date.length >= 4 }?.take(4) }.distinct().sortedDescending(),
+                tags = tags.map { it.name }
             )
         }
         .stateIn(
@@ -129,11 +159,16 @@ class DiaryViewModel @Inject constructor(
         }
     }
 
+    fun setTagFilter(tag: String?) {
+        _tagFilter.value = tag
+    }
+
     fun clearFilters() {
         _isFavoriteFilter.value = false
         _moodFilter.value = null
         _monthFilter.value = null
         _yearFilter.value = null
+        _tagFilter.value = null
     }
 
     fun toggleSelection(id: String) {
@@ -172,5 +207,6 @@ private data class DiaryFilters(
     val isFavorite: Boolean,
     val mood: String?,
     val month: String?,
-    val year: String?
+    val year: String?,
+    val tag: String?
 )

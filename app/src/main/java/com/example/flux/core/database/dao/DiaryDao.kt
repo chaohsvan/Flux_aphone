@@ -7,6 +7,9 @@ import androidx.room.Query
 import androidx.room.SkipQueryVerification
 import androidx.room.Update
 import com.example.flux.core.database.entity.DiaryEntity
+import com.example.flux.core.database.entity.DiaryTagEntity
+import com.example.flux.core.database.entity.DiaryTagLinkEntity
+import com.example.flux.core.database.entity.DiaryTagSummary
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -41,14 +44,63 @@ interface DiaryDao {
     @Query("SELECT * FROM diaries WHERE deleted_at IS NOT NULL AND restored_into_id IS NULL ORDER BY deleted_at DESC")
     fun getDeletedDiaries(): Flow<List<DiaryEntity>>
 
+    @Query("SELECT * FROM diary_tags WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE ASC")
+    fun getActiveTags(): Flow<List<DiaryTagEntity>>
+
+    @Query("SELECT * FROM diary_tags WHERE lower(name) = lower(:name) AND deleted_at IS NULL LIMIT 1")
+    suspend fun getActiveTagByName(name: String): DiaryTagEntity?
+
+    @Query("""
+        SELECT diary_tags.* FROM diary_tags
+        JOIN diary_tag_links ON diary_tags.id = diary_tag_links.tag_id
+        WHERE diary_tag_links.diary_id = :diaryId
+          AND diary_tag_links.deleted_at IS NULL
+          AND diary_tags.deleted_at IS NULL
+        ORDER BY diary_tags.name COLLATE NOCASE ASC
+    """)
+    suspend fun getTagsForDiary(diaryId: String): List<DiaryTagEntity>
+
+    @Query("""
+        SELECT diary_tag_links.diary_id AS diary_id, diary_tags.name AS tag_name
+        FROM diary_tag_links
+        JOIN diary_tags ON diary_tags.id = diary_tag_links.tag_id
+        JOIN diaries ON diaries.id = diary_tag_links.diary_id
+        WHERE diary_tag_links.deleted_at IS NULL
+          AND diary_tags.deleted_at IS NULL
+          AND diaries.deleted_at IS NULL
+        ORDER BY diary_tags.name COLLATE NOCASE ASC
+    """)
+    fun getActiveDiaryTagSummaries(): Flow<List<DiaryTagSummary>>
+
+    @Query("""
+        SELECT diary_tag_links.diary_id
+        FROM diary_tag_links
+        JOIN diary_tags ON diary_tags.id = diary_tag_links.tag_id
+        JOIN diaries ON diaries.id = diary_tag_links.diary_id
+        WHERE lower(diary_tags.name) = lower(:tagName)
+          AND diary_tag_links.deleted_at IS NULL
+          AND diary_tags.deleted_at IS NULL
+          AND diaries.deleted_at IS NULL
+    """)
+    fun getDiaryIdsForTag(tagName: String): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDiary(diary: DiaryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTag(tag: DiaryTagEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDiaryTagLink(link: DiaryTagLinkEntity)
 
     @Update
     suspend fun updateDiary(diary: DiaryEntity)
 
     @Query("UPDATE diaries SET deleted_at = :timestamp WHERE id = :id")
     suspend fun softDeleteDiary(id: String, timestamp: String)
+
+    @Query("UPDATE diary_tag_links SET deleted_at = :deletedAt WHERE diary_id = :diaryId AND deleted_at IS NULL")
+    suspend fun softDeleteDiaryTagLinks(diaryId: String, deletedAt: String)
 
     @SkipQueryVerification
     @Query("DELETE FROM diaries_fts WHERE diary_id = :diaryId")
@@ -57,7 +109,7 @@ interface DiaryDao {
     @SkipQueryVerification
     @Query("""
         INSERT INTO diaries_fts(diary_id, entry_date, entry_time, content_md, mood, weather, location_name, tags)
-        VALUES(:diaryId, :entryDate, :entryTime, :contentMd, :mood, :weather, :locationName, '')
+        VALUES(:diaryId, :entryDate, :entryTime, :contentMd, :mood, :weather, :locationName, :tags)
     """)
     suspend fun insertDiaryFts(
         diaryId: String,
@@ -66,6 +118,7 @@ interface DiaryDao {
         contentMd: String,
         mood: String?,
         weather: String?,
-        locationName: String?
+        locationName: String?,
+        tags: String
     )
 }

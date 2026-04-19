@@ -16,6 +16,7 @@ import com.example.flux.ui.theme.FluxDiaryYellow
 @Composable
 fun DiaryItemRow(
     diary: DiaryEntity,
+    tags: List<String> = emptyList(),
     isSelected: Boolean = false,
     onClick: (String) -> Unit,
     onLongClick: (() -> Unit)? = null,
@@ -82,6 +83,17 @@ fun DiaryItemRow(
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
+
+            if (tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = tags.take(5).joinToString(" ") { "#$it" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
             if (!diary.locationName.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))

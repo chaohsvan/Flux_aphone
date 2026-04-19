@@ -25,3 +25,8 @@ data class DiaryTagLinkEntity(
     @ColumnInfo(name = "created_at") val createdAt: String,
     @ColumnInfo(name = "deleted_at") val deletedAt: String?
 )
+
+data class DiaryTagSummary(
+    @ColumnInfo(name = "diary_id") val diaryId: String,
+    @ColumnInfo(name = "tag_name") val tagName: String
+)

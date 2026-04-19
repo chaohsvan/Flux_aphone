@@ -26,6 +26,9 @@ class RestoreDiaryUseCase @Inject constructor(
                 val mergedContent = listOf(activeDiary.contentMd, diary.contentMd)
                     .filter { it.isNotBlank() }
                     .joinToString(separator = "\n\n---\n\n")
+                val mergedTags = (diaryRepository.getTagsForDiary(activeDiary.id) + diaryRepository.getTagsForDiary(diary.id))
+                    .map { it.name }
+                    .distinctBy { it.lowercase() }
 
                 diaryRepository.replaceDiaryRecord(
                     activeDiary.copy(
@@ -38,7 +41,8 @@ class RestoreDiaryUseCase @Inject constructor(
                         isFavorite = maxOf(activeDiary.isFavorite, diary.isFavorite),
                         wordCount = mergedContent.length,
                         updatedAt = now
-                    )
+                    ),
+                    mergedTags
                 )
                 diaryRepository.replaceDiaryRecord(
                     diary.copy(

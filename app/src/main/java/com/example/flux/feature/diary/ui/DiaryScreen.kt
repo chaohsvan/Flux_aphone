@@ -66,6 +66,8 @@ fun DiaryScreen(
     val moodFilter by viewModel.moodFilter.collectAsState()
     val monthFilter by viewModel.monthFilter.collectAsState()
     val yearFilter by viewModel.yearFilter.collectAsState()
+    val tagFilter by viewModel.tagFilter.collectAsState()
+    val diaryTags by viewModel.diaryTags.collectAsState()
     val filterOptions by viewModel.filterOptions.collectAsState()
     
     var showFilterSheet by remember { mutableStateOf(false) }
@@ -127,7 +129,7 @@ fun DiaryScreen(
                             IconButton(onClick = { showFilterSheet = true }) {
                                 Text(
                                     text = "筛选",
-                                    color = if (isFavoriteFilter || moodFilter != null || monthFilter != null || yearFilter != null) {
+                                    color = if (isFavoriteFilter || moodFilter != null || monthFilter != null || yearFilter != null || tagFilter != null) {
                                         MaterialTheme.colorScheme.primary
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -173,6 +175,7 @@ fun DiaryScreen(
                 ) { diary ->
                     DiaryItemRow(
                         diary = diary,
+                        tags = diaryTags[diary.id].orEmpty(),
                         isSelected = selectedIds.contains(diary.id),
                         onClick = {
                             if (selectedIds.isNotEmpty()) {
@@ -228,6 +231,27 @@ fun DiaryScreen(
                             label = { Text(mood) },
                             modifier = Modifier.padding(end = 8.dp)
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("\u6807\u7b7e", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                if (filterOptions.tags.isEmpty()) {
+                    Text("\u6682\u65e0\u6807\u7b7e", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    LazyRow {
+                        items(filterOptions.tags) { tag ->
+                            FilterChip(
+                                selected = tagFilter == tag,
+                                onClick = {
+                                    if (tagFilter == tag) viewModel.setTagFilter(null)
+                                    else viewModel.setTagFilter(tag)
+                                },
+                                label = { Text("#$tag") },
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
                     }
                 }
 
