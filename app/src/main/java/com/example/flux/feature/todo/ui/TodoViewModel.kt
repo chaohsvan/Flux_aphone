@@ -1,10 +1,14 @@
 package com.example.flux.feature.todo.ui
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.repository.TodoRepository
+import com.example.flux.core.domain.todo.ExportTodosUseCase
 import com.example.flux.core.domain.todo.ToggleTodoStatusUseCase
+import com.example.flux.core.domain.todo.TodoExportFormat
 import com.example.flux.core.util.TimeUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.combine
@@ -59,7 +63,8 @@ data class TodoFilterState(
 @HiltViewModel
 class TodoViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
-    private val toggleTodoStatusUseCase: ToggleTodoStatusUseCase
+    private val toggleTodoStatusUseCase: ToggleTodoStatusUseCase,
+    private val exportTodosUseCase: ExportTodosUseCase
 ) : ViewModel() {
 
     private val _filterState = MutableStateFlow(TodoFilterState())
@@ -151,6 +156,13 @@ class TodoViewModel @Inject constructor(
     fun batchMarkNormalPriority() {
         viewModelScope.launch {
             todoRepository.updatePriority(_selectedIds.value, "normal")
+            clearSelection()
+        }
+    }
+
+    fun exportSelectedToUri(context: Context, uri: Uri, format: TodoExportFormat) {
+        viewModelScope.launch {
+            exportTodosUseCase(context, _selectedIds.value, uri, format)
             clearSelection()
         }
     }

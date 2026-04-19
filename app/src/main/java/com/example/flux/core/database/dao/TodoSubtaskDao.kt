@@ -12,6 +12,9 @@ interface TodoSubtaskDao {
     @Query("SELECT * FROM todo_subtasks WHERE todo_id = :todoId AND deleted_at IS NULL ORDER BY sort_order ASC")
     fun getSubtasksForTodo(todoId: String): Flow<List<TodoSubtaskEntity>>
 
+    @Query("SELECT * FROM todo_subtasks WHERE todo_id = :todoId AND deleted_at IS NULL ORDER BY sort_order ASC")
+    suspend fun getSubtasksSnapshotForTodo(todoId: String): List<TodoSubtaskEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubtask(subtask: TodoSubtaskEntity)
 

@@ -36,6 +36,10 @@ class TodoRepository @Inject constructor(
         return todoSubtaskDao.getSubtasksForTodo(todoId)
     }
 
+    suspend fun getSubtasksSnapshotForTodo(todoId: String): List<TodoSubtaskEntity> {
+        return todoSubtaskDao.getSubtasksSnapshotForTodo(todoId)
+    }
+
     suspend fun saveSubtask(subtask: TodoSubtaskEntity) {
         todoSubtaskDao.insertSubtask(subtask)
     }

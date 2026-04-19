@@ -1,5 +1,7 @@
 package com.example.flux.feature.todo.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -40,8 +43,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.flux.core.domain.todo.TodoExportFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,8 +57,21 @@ fun TodoScreen(
     val todos by viewModel.todos.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
+    val context = LocalContext.current
     var showAddSheet by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
+    var showExportSheet by remember { mutableStateOf(false) }
+    var pendingExportFormat by remember { mutableStateOf<TodoExportFormat?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("*/*"),
+        onResult = { uri ->
+            val format = pendingExportFormat
+            if (uri != null && format != null) {
+                viewModel.exportSelectedToUri(context, uri, format)
+            }
+            pendingExportFormat = null
+        }
+    )
 
     Scaffold(
         topBar = {
@@ -71,6 +89,9 @@ fun TodoScreen(
                         }
                         TextButton(onClick = { viewModel.invertVisibleSelection() }) {
                             Text("反选")
+                        }
+                        IconButton(onClick = { showExportSheet = true }) {
+                            Icon(Icons.Default.Share, contentDescription = "Export Selected")
                         }
                         if (selectedIds.size == 1) {
                             val selectedId = selectedIds.first()
@@ -181,6 +202,17 @@ fun TodoScreen(
         )
     }
 
+    if (showExportSheet) {
+        TodoExportSheet(
+            onFormatSelected = { format ->
+                pendingExportFormat = format
+                exportLauncher.launch("FluxTodos_${com.example.flux.core.util.TimeUtil.getCurrentDate()}.${format.extension}")
+                showExportSheet = false
+            },
+            onDismiss = { showExportSheet = false }
+        )
+    }
+
     if (showAddSheet) {
         TodoInputSheet(
             onDismiss = { showAddSheet = false },
@@ -189,6 +221,34 @@ fun TodoScreen(
                 showAddSheet = false
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TodoExportSheet(
+    onFormatSelected: (TodoExportFormat) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text("导出待办", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(12.dp))
+            TextButton(onClick = { onFormatSelected(TodoExportFormat.JSON) }, modifier = Modifier.fillMaxWidth()) {
+                Text("JSON")
+            }
+            TextButton(onClick = { onFormatSelected(TodoExportFormat.CSV) }, modifier = Modifier.fillMaxWidth()) {
+                Text("CSV")
+            }
+            TextButton(onClick = { onFormatSelected(TodoExportFormat.MARKDOWN) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Markdown")
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }
 
