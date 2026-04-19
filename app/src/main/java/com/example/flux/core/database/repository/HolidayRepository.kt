@@ -26,10 +26,8 @@ class HolidayRepository @Inject constructor(
                 CalendarHolidayOverrideEntity(
                     date = date,
                     isHoliday = if (nextIsHoliday) 1 else 0,
-                    label = if (nextIsHoliday) "手动假期" else "手动工作日",
                     createdAt = current?.createdAt ?: now,
-                    updatedAt = now,
-                    version = (current?.version ?: 0) + 1
+                    updatedAt = now
                 )
             )
         }

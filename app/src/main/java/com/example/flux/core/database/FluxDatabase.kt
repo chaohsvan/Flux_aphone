@@ -8,6 +8,7 @@ import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.DiaryTagEntity
 import com.example.flux.core.database.entity.DiaryTagLinkEntity
 import com.example.flux.core.database.entity.TodoEntity
+import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.entity.TodoSubtaskEntity
 
 @Database(
@@ -15,6 +16,7 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
         DiaryEntity::class,
         DiaryTagEntity::class,
         DiaryTagLinkEntity::class,
+        TodoProjectEntity::class,
         TodoEntity::class,
         TodoSubtaskEntity::class,
         CalendarEventEntity::class,

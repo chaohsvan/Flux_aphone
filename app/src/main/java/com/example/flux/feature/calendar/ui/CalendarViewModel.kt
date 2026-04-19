@@ -34,7 +34,7 @@ data class CalendarMonth(
     val month: Int
 ) {
     val label: String
-        get() = String.format(Locale.CHINA, "%d年 %d月", year, month)
+        get() = String.format(Locale.CHINA, "%d年%d月", year, month)
 
     fun next(): CalendarMonth {
         return if (month == 12) CalendarMonth(year + 1, 1) else copy(month = month + 1)
@@ -133,9 +133,9 @@ class CalendarViewModel @Inject constructor(
     val holidayOverrides: StateFlow<Map<String, HolidayOverrideState>> = holidayRepository.getHolidayOverrides()
         .map { overrides ->
             overrides.associate { override ->
-                override.date to HolidayOverrideState(
+                override.date.orEmpty() to HolidayOverrideState(
                     isHoliday = override.isHoliday == 1,
-                    label = override.label
+                    label = if (override.isHoliday == 1) "手动假期" else "手动工作日"
                 )
             }
         }

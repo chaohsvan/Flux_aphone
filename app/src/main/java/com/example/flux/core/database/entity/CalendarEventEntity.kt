@@ -2,16 +2,23 @@ package com.example.flux.core.database.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "calendar_events")
+@Entity(
+    tableName = "calendar_events",
+    indices = [
+        Index(name = "idx_events_range", value = ["start_at", "end_at", "deleted_at"]),
+        Index(name = "idx_events_start", value = ["start_at", "deleted_at"])
+    ]
+)
 data class CalendarEventEntity(
     @PrimaryKey val id: String,
     val title: String,
-    val description: String = "",
+    @ColumnInfo(defaultValue = "''") val description: String = "",
     @ColumnInfo(name = "start_at") val startAt: String,
     @ColumnInfo(name = "end_at") val endAt: String,
-    @ColumnInfo(name = "all_day") val allDay: Int = 0,
+    @ColumnInfo(name = "all_day", defaultValue = "0") val allDay: Int = 0,
     val color: String?,
     @ColumnInfo(name = "location_name") val locationName: String?,
     @ColumnInfo(name = "reminder_minutes") val reminderMinutes: Int?,
@@ -19,5 +26,5 @@ data class CalendarEventEntity(
     @ColumnInfo(name = "created_at") val createdAt: String,
     @ColumnInfo(name = "updated_at") val updatedAt: String,
     @ColumnInfo(name = "deleted_at") val deletedAt: String?,
-    val version: Int = 1
+    @ColumnInfo(defaultValue = "1") val version: Int = 1
 )

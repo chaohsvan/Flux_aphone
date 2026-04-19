@@ -9,15 +9,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface HolidayDao {
-    @Query("SELECT * FROM calendar_holiday_overrides ORDER BY date ASC")
+    @Query("SELECT * FROM calendar_holidays ORDER BY day ASC")
     fun getHolidayOverrides(): Flow<List<CalendarHolidayOverrideEntity>>
 
-    @Query("SELECT * FROM calendar_holiday_overrides WHERE date = :date LIMIT 1")
+    @Query("SELECT * FROM calendar_holidays WHERE day = :date LIMIT 1")
     suspend fun getHolidayOverrideByDate(date: String): CalendarHolidayOverrideEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHolidayOverride(override: CalendarHolidayOverrideEntity)
 
-    @Query("DELETE FROM calendar_holiday_overrides WHERE date = :date")
+    @Query("DELETE FROM calendar_holidays WHERE day = :date")
     suspend fun deleteHolidayOverride(date: String)
 }

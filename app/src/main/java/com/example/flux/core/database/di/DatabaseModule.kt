@@ -2,14 +2,16 @@ package com.example.flux.core.database.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.flux.core.database.FluxDatabase
+import com.example.flux.core.database.FluxPrepackagedDatabaseNormalizer
 import com.example.flux.core.database.dao.DiaryDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import java.io.File
 import javax.inject.Singleton
 
 @Module
@@ -24,7 +26,14 @@ object DatabaseModule {
             FluxDatabase::class.java,
             "flux.db"
         )
-            .createFromAsset("flux.db")
+            .createFromAsset(
+                "flux.db",
+                object : RoomDatabase.PrepackagedDatabaseCallback() {
+                    override fun onOpenPrepackagedDatabase(db: SupportSQLiteDatabase) {
+                        FluxPrepackagedDatabaseNormalizer.normalize(db)
+                    }
+                }
+            )
             .fallbackToDestructiveMigration()
             .build()
     }
