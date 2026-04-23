@@ -11,7 +11,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,28 +43,35 @@ fun TrashScreen(
     val deletedDiaries by viewModel.deletedDiaries.collectAsState()
     val deletedTodos by viewModel.deletedTodos.collectAsState()
     val deletedEvents by viewModel.deletedEvents.collectAsState()
-
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("日记", "待办", "事件")
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("回收站 (点击恢复)") },
+                title = { Text("回收站（点击恢复）") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = onNavigateToAttachmentManager) {
-                        Icon(Icons.Default.Warning, contentDescription = "附件清理", tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "附件清理",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             )
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
             TabRow(selectedTabIndex = selectedTabIndex) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -69,9 +85,7 @@ fun TrashScreen(
             when (selectedTabIndex) {
                 0 -> {
                     if (deletedDiaries.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("没有已删除的日记")
-                        }
+                        EmptyTrashText("没有已删除的日记")
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             items(deletedDiaries, key = { it.id }) { diary ->
@@ -85,15 +99,13 @@ fun TrashScreen(
                 }
                 1 -> {
                     if (deletedTodos.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("没有已删除的待办")
-                        }
+                        EmptyTrashText("没有已删除的待办")
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             items(deletedTodos, key = { it.id }) { todo ->
                                 TodoItemRow(
                                     todo = todo,
-                                    onToggle = { _, _ -> /* Do nothing in trash */ },
+                                    onToggle = { _, _ -> },
                                     onClick = { viewModel.restoreTodo(todo.id) }
                                 )
                             }
@@ -102,9 +114,7 @@ fun TrashScreen(
                 }
                 else -> {
                     if (deletedEvents.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("没有已删除的事件")
-                        }
+                        EmptyTrashText("没有已删除的事件")
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             items(deletedEvents, key = { it.id }) { event ->
@@ -121,5 +131,12 @@ fun TrashScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyTrashText(text: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text)
     }
 }

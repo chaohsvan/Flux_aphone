@@ -18,7 +18,7 @@ data class DiaryEditorUiState(
     val id: String? = null,
     val title: String = "",
     val contentMd: String = "",
-    val entryDate: String = "", // e.g. "2026-04-19"
+    val entryDate: String = "",
     val entryTime: String? = null,
     val mood: String? = null,
     val weather: String? = null,
@@ -45,11 +45,10 @@ class DiaryEditorViewModel @Inject constructor(
         if (diaryId != null && diaryId != "new") {
             loadDiary(diaryId)
         } else {
-            // Initialize new diary
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     isLoading = false,
-                    entryDate = TimeUtil.getCurrentIsoTime().substring(0, 10) // Simple YYYY-MM-DD
+                    entryDate = TimeUtil.getCurrentDate()
                 )
             }
         }
@@ -77,6 +76,8 @@ class DiaryEditorViewModel @Inject constructor(
                         isLoading = false
                     )
                 }
+            } else {
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
@@ -142,7 +143,7 @@ class DiaryEditorViewModel @Inject constructor(
                 createdAt = currentState.createdAt ?: now,
                 updatedAt = now,
                 deletedAt = null,
-                version = currentState.version,
+                version = currentState.version + 1,
                 restoredAt = null,
                 restoredIntoId = null
             )
@@ -151,16 +152,9 @@ class DiaryEditorViewModel @Inject constructor(
     }
 
     fun deleteDiary() {
-        val currentState = _uiState.value
-        val diaryId = currentState.id
-        if (diaryId != null) {
-            viewModelScope.launch {
-                val diary = diaryRepository.getDiaryById(diaryId)
-                if (diary != null) {
-                    val deleted = diary.copy(deletedAt = TimeUtil.getCurrentIsoTime())
-                    diaryRepository.saveDiary(deleted)
-                }
-            }
+        val id = _uiState.value.id ?: return
+        viewModelScope.launch {
+            diaryRepository.softDeleteDiary(id)
         }
     }
 

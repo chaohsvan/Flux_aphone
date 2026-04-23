@@ -2,20 +2,39 @@ package com.example.flux.feature.calendar.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,9 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.flux.core.domain.calendar.DailyAggregation
@@ -50,7 +69,6 @@ fun CalendarScreen(
     val holidayOverrides by viewModel.holidayOverrides.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val selectedDateDetails by viewModel.selectedDateDetails.collectAsState()
-
     var showEventInputSheet by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -59,10 +77,10 @@ fun CalendarScreen(
                 title = { Text(currentMonth.label) },
                 actions = {
                     IconButton(onClick = viewModel::previousMonth) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Month")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上个月")
                     }
                     IconButton(onClick = viewModel::nextMonth) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Month")
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下个月")
                     }
                 }
             )
@@ -74,55 +92,23 @@ fun CalendarScreen(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
-            // Layer Toggles
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    FilterChip(
-                        selected = showDiaries,
-                        onClick = viewModel::toggleShowDiaries,
-                        label = { Text("日记") },
-                        leadingIcon = {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxDiaryYellow))
-                        }
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = showHolidays,
-                        onClick = viewModel::toggleShowHolidays,
-                        label = { Text("假期") },
-                        leadingIcon = {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxHolidayOrange))
-                        }
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = holidayEditMode,
-                        onClick = viewModel::toggleHolidayEditMode,
-                        label = { Text("标记") }
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = showTodos,
-                        onClick = viewModel::toggleShowTodos,
-                        label = { Text("待办") },
-                        leadingIcon = {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(FluxTodoRed))
-                        }
-                    )
-                }
-            }
+            CalendarLayerToggles(
+                showDiaries = showDiaries,
+                showTodos = showTodos,
+                showHolidays = showHolidays,
+                holidayEditMode = holidayEditMode,
+                onToggleDiaries = viewModel::toggleShowDiaries,
+                onToggleTodos = viewModel::toggleShowTodos,
+                onToggleHolidays = viewModel::toggleShowHolidays,
+                onToggleHolidayEditMode = viewModel::toggleHolidayEditMode
+            )
 
-            // Weekday Header
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                val daysOfWeek = listOf("日", "一", "二", "三", "四", "五", "六")
-                daysOfWeek.forEach { day ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                listOf("日", "一", "二", "三", "四", "五", "六").forEach { day ->
                     Text(
                         text = day,
                         modifier = Modifier.weight(1f),
@@ -137,16 +123,15 @@ fun CalendarScreen(
 
             val daysInMonth = currentMonth.lengthOfMonth()
             val startOffset = currentMonth.firstDayOffset()
-
-            val totalCells = startOffset + daysInMonth
-            val rows = Math.ceil(totalCells / 7.0).toInt()
+            val rows = kotlin.math.ceil((startOffset + daysInMonth) / 7.0).toInt()
+            val cellCount = rows * 7
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(7),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(1.dp) // borders
+                contentPadding = PaddingValues(1.dp)
             ) {
-                items(rows * 7) { index ->
+                items((0 until cellCount).toList()) { index ->
                     if (index < startOffset || index >= startOffset + daysInMonth) {
                         Box(
                             modifier = Modifier
@@ -161,7 +146,7 @@ fun CalendarScreen(
                         val defaultHoliday = currentMonth.isWeekend(day)
                         val holidayOverride = holidayOverrides[dateString]
                         val isHoliday = holidayOverride?.isHoliday ?: defaultHoliday
-                        
+
                         CalendarGridCell(
                             day = day,
                             aggregation = aggregation,
@@ -177,87 +162,198 @@ fun CalendarScreen(
                 }
             }
         }
+    }
 
-        if (selectedDate != null) {
-            ModalBottomSheet(onDismissRequest = { viewModel.selectDate(null) }) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(
-                        text = selectedDate ?: "",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
+    if (selectedDate != null) {
+        ModalBottomSheet(onDismissRequest = { viewModel.selectDate(null) }) {
+            CalendarDateDetailsSheet(
+                selectedDate = selectedDate.orEmpty(),
+                details = selectedDateDetails,
+                onAddEvent = { showEventInputSheet = true },
+                onDeleteEvent = viewModel::deleteEvent
+            )
+        }
+    }
 
-                    selectedDateDetails?.let { details ->
-                        if (details.holidayLabel != null) {
-                            Text(
-                                text = details.holidayLabel,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (details.isHoliday) FluxHolidayOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            )
-                        }
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("事件", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            IconButton(onClick = { showEventInputSheet = true }) {
-                                Icon(Icons.Default.Add, contentDescription = "Add Event")
-                            }
-                        }
-
-                        if (details.events.isNotEmpty()) {
-                            details.events.forEach { event ->
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                    Text("• ${event.title} (${event.startAt.substring(11, 16)})", modifier = Modifier.weight(1f))
-                                    IconButton(onClick = { viewModel.deleteEvent(event.id) }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete Event", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-
-                        if (details.diary != null) {
-                            Text("日记", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("• ${details.diary.title.ifBlank { "无标题日记" }}", modifier = Modifier.padding(vertical = 4.dp))
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-
-                        if (details.todos.isNotEmpty()) {
-                            Text("待办", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            details.todos.forEach { todo ->
-                                Text(
-                                    text = "• ${todo.title}",
-                                    textDecoration = if (todo.status == "completed") TextDecoration.LineThrough else null,
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                                )
-                            }
-                        }
-
-                        if (details.events.isEmpty() && details.diary == null && details.todos.isEmpty()) {
-                            Text("今天没有记录任何事项。")
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(32.dp))
-                }
+    if (showEventInputSheet && selectedDate != null) {
+        EventInputSheet(
+            targetDate = selectedDate!!,
+            onDismiss = { showEventInputSheet = false },
+            onSubmit = { title, startAt ->
+                viewModel.addEvent(title, startAt)
+                showEventInputSheet = false
             }
-        if (showEventInputSheet && selectedDate != null) {
-            EventInputSheet(
-                targetDate = selectedDate!!,
-                onDismiss = { showEventInputSheet = false },
-                onSubmit = { title, startAt ->
-                    viewModel.addEvent(title, startAt)
-                    showEventInputSheet = false
+        )
+    }
+}
+
+@Composable
+private fun CalendarLayerToggles(
+    showDiaries: Boolean,
+    showTodos: Boolean,
+    showHolidays: Boolean,
+    holidayEditMode: Boolean,
+    onToggleDiaries: () -> Unit,
+    onToggleTodos: () -> Unit,
+    onToggleHolidays: () -> Unit,
+    onToggleHolidayEditMode: () -> Unit
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            FilterChip(
+                selected = showDiaries,
+                onClick = onToggleDiaries,
+                label = { Text("日记") },
+                leadingIcon = {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(FluxDiaryYellow)
+                    )
+                }
+            )
+        }
+        item {
+            FilterChip(
+                selected = showHolidays,
+                onClick = onToggleHolidays,
+                label = { Text("假期") },
+                leadingIcon = {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(FluxHolidayOrange)
+                    )
+                }
+            )
+        }
+        item {
+            FilterChip(
+                selected = holidayEditMode,
+                onClick = onToggleHolidayEditMode,
+                label = { Text("标记假期") }
+            )
+        }
+        item {
+            FilterChip(
+                selected = showTodos,
+                onClick = onToggleTodos,
+                label = { Text("待办") },
+                leadingIcon = {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(FluxTodoRed)
+                    )
                 }
             )
         }
     }
 }
+
+@Composable
+private fun CalendarDateDetailsSheet(
+    selectedDate: String,
+    details: CalendarDateDetails?,
+    onAddEvent: () -> Unit,
+    onDeleteEvent: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = selectedDate,
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        if (details != null) {
+            if (details.holidayLabel != null) {
+                Text(
+                    text = details.holidayLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (details.isHoliday) FluxHolidayOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("事件", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                IconButton(onClick = onAddEvent) {
+                    Icon(Icons.Default.Add, contentDescription = "添加事件")
+                }
+            }
+
+            details.events.forEach { event ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "- ${event.title} (${event.startAt.substring(11, 16)})",
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { onDeleteEvent(event.id) }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "删除事件",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
+            if (details.diary != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("日记", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "- ${details.diary.title.ifBlank { "无标题日记" }}",
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+
+            if (details.todos.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("待办", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                details.todos.forEach { todo ->
+                    Text(
+                        text = "- ${todo.title}",
+                        textDecoration = if (todo.status == "completed") TextDecoration.LineThrough else null,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+
+            if (details.events.isEmpty() && details.diary == null && details.todos.isEmpty()) {
+                Text("这一天还没有记录。")
+            }
+        }
+        Spacer(modifier = Modifier.height(32.dp))
+    }
 }
 
 @Composable
 fun CalendarGridCell(
-    day: Int, 
-    aggregation: DailyAggregation?, 
+    day: Int,
+    aggregation: DailyAggregation?,
     showDiaries: Boolean,
     showTodos: Boolean,
     showHolidays: Boolean,
@@ -270,7 +366,7 @@ fun CalendarGridCell(
     val renderManualWorkday = showHolidays && isHolidayOverride && !isHoliday
     Box(
         modifier = Modifier
-            .aspectRatio(0.7f) // taller than wide
+            .aspectRatio(0.7f)
             .padding(0.5.dp)
             .background(
                 when {
@@ -305,9 +401,9 @@ fun CalendarGridCell(
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             }
-            
+
             Spacer(modifier = Modifier.weight(1f))
-            
+
             if (aggregation != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -315,15 +411,30 @@ fun CalendarGridCell(
                     verticalAlignment = Alignment.Bottom
                 ) {
                     if (showDiaries && aggregation.hasDiary) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(FluxDiaryYellow))
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(FluxDiaryYellow)
+                        )
                         Spacer(modifier = Modifier.width(2.dp))
                     }
                     if (showTodos && aggregation.pendingTodosCount > 0) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(FluxTodoRed))
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(FluxTodoRed)
+                        )
                         Spacer(modifier = Modifier.width(2.dp))
                     }
                     if (showTodos && aggregation.completedTodosCount > 0) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color.Gray))
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color.Gray)
+                        )
                     }
                 }
             }

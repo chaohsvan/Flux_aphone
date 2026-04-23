@@ -13,6 +13,9 @@ import com.example.flux.core.domain.calendar.CalendarAggregatorUseCase
 import com.example.flux.core.domain.calendar.DailyAggregation
 import com.example.flux.core.util.TimeUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.Calendar
+import java.util.Locale
+import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,9 +28,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.Calendar
-import java.util.Locale
-import javax.inject.Inject
 
 data class CalendarMonth(
     val year: Int,
@@ -133,7 +133,7 @@ class CalendarViewModel @Inject constructor(
     val holidayOverrides: StateFlow<Map<String, HolidayOverrideState>> = holidayRepository.getHolidayOverrides()
         .map { overrides ->
             overrides.associate { override ->
-                override.date.orEmpty() to HolidayOverrideState(
+                override.date to HolidayOverrideState(
                     isHoliday = override.isHoliday == 1,
                     label = if (override.isHoliday == 1) "手动假期" else "手动工作日"
                 )

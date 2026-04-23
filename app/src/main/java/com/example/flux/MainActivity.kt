@@ -4,12 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -18,8 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -31,8 +27,8 @@ import com.example.flux.feature.diary.ui.DiaryEditorScreen
 import com.example.flux.feature.diary.ui.DiaryScreen
 import com.example.flux.feature.todo.ui.TodoDetailScreen
 import com.example.flux.feature.todo.ui.TodoScreen
-import com.example.flux.feature.trash.ui.TrashScreen
 import com.example.flux.feature.trash.ui.AttachmentManagerScreen
+import com.example.flux.feature.trash.ui.TrashScreen
 import com.example.flux.ui.theme.FluxTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -93,8 +89,7 @@ fun FluxApp(
     onNavigateToTrash: () -> Unit,
     onNavigateToTodoDetail: (String) -> Unit
 ) {
-    // 默认启动项设置为 TODO，以便验证 Phase 4
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.TODO) }
+    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.DIARY) }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -114,12 +109,12 @@ fun FluxApp(
         }
     ) {
         when (currentDestination) {
-            AppDestinations.TODO -> TodoScreen(onNavigateToDetail = onNavigateToTodoDetail)
             AppDestinations.DIARY -> DiaryScreen(
                 onNavigateToEditor = onNavigateToEditor,
                 onNavigateToTrash = onNavigateToTrash
             )
             AppDestinations.CALENDAR -> CalendarScreen()
+            AppDestinations.TODO -> TodoScreen(onNavigateToDetail = onNavigateToTodoDetail)
         }
     }
 }
@@ -130,5 +125,5 @@ enum class AppDestinations(
 ) {
     DIARY("日记", Icons.Default.Edit),
     CALENDAR("日历", Icons.Default.DateRange),
-    TODO("待办", Icons.Default.List),
+    TODO("待办", Icons.AutoMirrored.Filled.List),
 }
