@@ -77,6 +77,12 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            FluxPrepackagedDatabaseNormalizer.rebuildDiarySearchIndex(db)
+        }
+    }
+
     @Provides
     @Singleton
     fun provideFluxDatabase(@ApplicationContext context: Context): FluxDatabase {
@@ -93,7 +99,7 @@ object DatabaseModule {
                     }
                 }
             )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .fallbackToDestructiveMigration()
             .build()
     }

@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import com.example.flux.core.database.entity.CalendarEventEntity
 import com.example.flux.core.database.entity.CalendarHolidayOverrideEntity
 import com.example.flux.core.database.entity.DiaryEntity
+import com.example.flux.core.database.entity.DiaryFtsEntity
 import com.example.flux.core.database.entity.DiaryTagEntity
 import com.example.flux.core.database.entity.DiaryTagLinkEntity
 import com.example.flux.core.database.entity.TodoEntity
@@ -15,6 +16,7 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
 @Database(
     entities = [
         DiaryEntity::class,
+        DiaryFtsEntity::class,
         DiaryTagEntity::class,
         DiaryTagLinkEntity::class,
         TodoProjectEntity::class,
@@ -24,7 +26,7 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
         CalendarEventEntity::class,
         CalendarHolidayOverrideEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class FluxDatabase : RoomDatabase() {

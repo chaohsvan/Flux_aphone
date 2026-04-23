@@ -29,7 +29,7 @@ object FluxPrepackagedDatabaseNormalizer {
             rebuildTodoHistory(exec)
             rebuildCalendarEvents(exec)
             rebuildCalendarHolidays(exec)
-            exec("PRAGMA user_version=5")
+            exec("PRAGMA user_version=6")
             exec("COMMIT")
         } catch (throwable: Throwable) {
             exec("ROLLBACK")
