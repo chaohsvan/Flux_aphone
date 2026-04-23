@@ -66,8 +66,14 @@ object DatabaseModule {
 
     private val MIGRATION_3_4 = object : Migration(3, 4) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            FluxPrepackagedDatabaseNormalizer.rebuildDiaryFts(db)
+            FluxPrepackagedDatabaseNormalizer.rebuildDiarySearchIndex(db)
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_todo_subtasks_todo ON todo_subtasks(todo_id, deleted_at)")
+        }
+    }
+
+    private val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            FluxPrepackagedDatabaseNormalizer.rebuildDiarySearchIndex(db)
         }
     }
 
@@ -87,7 +93,7 @@ object DatabaseModule {
                     }
                 }
             )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .fallbackToDestructiveMigration()
             .build()
     }

@@ -119,7 +119,7 @@ fun DiaryScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = viewModel::onSearchQueryChanged,
-                        placeholder = { Text("搜索日记 (FTS5)...") },
+                        placeholder = { Text("搜索日记...") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),

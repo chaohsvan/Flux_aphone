@@ -36,8 +36,19 @@ interface DiaryDao {
     @SkipQueryVerification
     @Query("""
         SELECT diaries.* FROM diaries 
-        JOIN diaries_fts ON diaries.id = diaries_fts.diary_id 
-        WHERE diaries_fts MATCH :query AND diaries.deleted_at IS NULL
+        JOIN diary_search_index ON diaries.id = diary_search_index.diary_id
+        WHERE diaries.deleted_at IS NULL
+          AND (
+            lower(diary_search_index.title) LIKE '%' || lower(:query) || '%'
+            OR lower(diary_search_index.entry_date) LIKE '%' || lower(:query) || '%'
+            OR lower(diary_search_index.entry_time) LIKE '%' || lower(:query) || '%'
+            OR lower(diary_search_index.content_md) LIKE '%' || lower(:query) || '%'
+            OR lower(diary_search_index.mood) LIKE '%' || lower(:query) || '%'
+            OR lower(diary_search_index.weather) LIKE '%' || lower(:query) || '%'
+            OR lower(diary_search_index.location_name) LIKE '%' || lower(:query) || '%'
+            OR lower(diary_search_index.tags) LIKE '%' || lower(:query) || '%'
+          )
+        ORDER BY diaries.entry_date DESC
     """)
     fun searchDiaries(query: String): Flow<List<DiaryEntity>>
 
@@ -103,18 +114,21 @@ interface DiaryDao {
     suspend fun softDeleteDiaryTagLinks(diaryId: String, deletedAt: String)
 
     @SkipQueryVerification
-    @Query("DELETE FROM diaries_fts WHERE diary_id = :diaryId")
+    @Query("DELETE FROM diary_search_index WHERE diary_id = :diaryId")
     suspend fun deleteDiaryFts(diaryId: String)
 
     @SkipQueryVerification
     @Query("""
-        INSERT INTO diaries_fts(diary_id, entry_date, entry_time, content_md, mood, weather, location_name, tags)
-        VALUES(:diaryId, :entryDate, :entryTime, :contentMd, :mood, :weather, :locationName, :tags)
+        INSERT OR REPLACE INTO diary_search_index(
+            diary_id, entry_date, entry_time, title, content_md, mood, weather, location_name, tags
+        )
+        VALUES(:diaryId, :entryDate, :entryTime, :title, :contentMd, :mood, :weather, :locationName, :tags)
     """)
     suspend fun insertDiaryFts(
         diaryId: String,
         entryDate: String,
         entryTime: String?,
+        title: String,
         contentMd: String,
         mood: String?,
         weather: String?,

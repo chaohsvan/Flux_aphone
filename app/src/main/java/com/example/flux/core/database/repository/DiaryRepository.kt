@@ -23,15 +23,8 @@ class DiaryRepository @Inject constructor(
     fun searchDiaries(query: String): Flow<List<DiaryEntity>> {
         val formattedQuery = query
             .trim()
-            .split(Regex("\\s+"))
-            .map { term ->
-                term
-                    .replace("\"", "")
-                    .replace("*", "")
-                    .trim()
-            }
-            .filter { it.isNotBlank() }
-            .joinToString(" ") { "$it*" }
+            .replace("%", "\\%")
+            .replace("_", "\\_")
         return diaryDao.searchDiaries(formattedQuery)
     }
 
@@ -137,6 +130,7 @@ class DiaryRepository @Inject constructor(
                 diaryId = diary.id,
                 entryDate = diary.entryDate,
                 entryTime = diary.entryTime,
+                title = diary.title,
                 contentMd = diary.contentMd,
                 mood = diary.mood,
                 weather = diary.weather,

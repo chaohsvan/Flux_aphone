@@ -12,8 +12,8 @@ object FluxPrepackagedDatabaseNormalizer {
         normalizeWith { sql -> db.execSQL(sql) }
     }
 
-    fun rebuildDiaryFts(db: SupportSQLiteDatabase) {
-        rebuildDiaryFts { sql -> db.execSQL(sql) }
+    fun rebuildDiarySearchIndex(db: SupportSQLiteDatabase) {
+        rebuildDiarySearchIndex { sql -> db.execSQL(sql) }
     }
 
     private fun normalizeWith(exec: (String) -> Unit) {
@@ -22,14 +22,14 @@ object FluxPrepackagedDatabaseNormalizer {
         try {
             rebuildDiaries(exec)
             rebuildDiaryTags(exec)
-            rebuildDiaryFts(exec)
+            rebuildDiarySearchIndex(exec)
             rebuildTodoProjects(exec)
             rebuildTodos(exec)
             rebuildTodoSubtasks(exec)
             rebuildTodoHistory(exec)
             rebuildCalendarEvents(exec)
             rebuildCalendarHolidays(exec)
-            exec("PRAGMA user_version=4")
+            exec("PRAGMA user_version=5")
             exec("COMMIT")
         } catch (throwable: Throwable) {
             exec("ROLLBACK")
@@ -121,31 +121,33 @@ object FluxPrepackagedDatabaseNormalizer {
         exec("ALTER TABLE diary_tags_room RENAME TO diary_tags")
     }
 
-    private fun rebuildDiaryFts(exec: (String) -> Unit) {
-        exec("DROP TABLE IF EXISTS diaries_fts")
+    private fun rebuildDiarySearchIndex(exec: (String) -> Unit) {
+        exec("DROP TABLE IF EXISTS diary_search_index")
         exec(
             """
-            CREATE VIRTUAL TABLE IF NOT EXISTS diaries_fts USING fts5(
-                diary_id UNINDEXED,
-                entry_date,
-                entry_time,
-                content_md,
-                mood,
-                weather,
-                location_name,
-                tags
+            CREATE TABLE IF NOT EXISTS diary_search_index (
+                diary_id TEXT NOT NULL PRIMARY KEY,
+                entry_date TEXT NOT NULL,
+                entry_time TEXT,
+                title TEXT NOT NULL,
+                content_md TEXT NOT NULL,
+                mood TEXT,
+                weather TEXT,
+                location_name TEXT,
+                tags TEXT NOT NULL DEFAULT ''
             )
             """.trimIndent()
         )
         exec(
             """
-            INSERT INTO diaries_fts(
-                diary_id, entry_date, entry_time, content_md, mood, weather, location_name, tags
+            INSERT OR REPLACE INTO diary_search_index(
+                diary_id, entry_date, entry_time, title, content_md, mood, weather, location_name, tags
             )
             SELECT
                 diaries.id,
                 diaries.entry_date,
                 diaries.entry_time,
+                diaries.title,
                 diaries.content_md,
                 diaries.mood,
                 diaries.weather,
@@ -163,6 +165,7 @@ object FluxPrepackagedDatabaseNormalizer {
                 diaries.id,
                 diaries.entry_date,
                 diaries.entry_time,
+                diaries.title,
                 diaries.content_md,
                 diaries.mood,
                 diaries.weather,
