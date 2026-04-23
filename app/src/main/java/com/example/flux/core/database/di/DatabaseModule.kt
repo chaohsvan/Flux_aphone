@@ -64,6 +64,13 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            FluxPrepackagedDatabaseNormalizer.rebuildDiaryFts(db)
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_todo_subtasks_todo ON todo_subtasks(todo_id, deleted_at)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideFluxDatabase(@ApplicationContext context: Context): FluxDatabase {
@@ -80,7 +87,7 @@ object DatabaseModule {
                     }
                 }
             )
-            .addMigrations(MIGRATION_2_3)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
     }

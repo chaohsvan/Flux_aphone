@@ -12,19 +12,24 @@ object FluxPrepackagedDatabaseNormalizer {
         normalizeWith { sql -> db.execSQL(sql) }
     }
 
+    fun rebuildDiaryFts(db: SupportSQLiteDatabase) {
+        rebuildDiaryFts { sql -> db.execSQL(sql) }
+    }
+
     private fun normalizeWith(exec: (String) -> Unit) {
         exec("PRAGMA foreign_keys=OFF")
         exec("BEGIN TRANSACTION")
         try {
             rebuildDiaries(exec)
             rebuildDiaryTags(exec)
+            rebuildDiaryFts(exec)
             rebuildTodoProjects(exec)
             rebuildTodos(exec)
             rebuildTodoSubtasks(exec)
             rebuildTodoHistory(exec)
             rebuildCalendarEvents(exec)
             rebuildCalendarHolidays(exec)
-            exec("PRAGMA user_version=3")
+            exec("PRAGMA user_version=4")
             exec("COMMIT")
         } catch (throwable: Throwable) {
             exec("ROLLBACK")
@@ -114,6 +119,56 @@ object FluxPrepackagedDatabaseNormalizer {
         )
         exec("DROP TABLE diary_tags")
         exec("ALTER TABLE diary_tags_room RENAME TO diary_tags")
+    }
+
+    private fun rebuildDiaryFts(exec: (String) -> Unit) {
+        exec("DROP TABLE IF EXISTS diaries_fts")
+        exec(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS diaries_fts USING fts5(
+                diary_id UNINDEXED,
+                entry_date,
+                entry_time,
+                content_md,
+                mood,
+                weather,
+                location_name,
+                tags
+            )
+            """.trimIndent()
+        )
+        exec(
+            """
+            INSERT INTO diaries_fts(
+                diary_id, entry_date, entry_time, content_md, mood, weather, location_name, tags
+            )
+            SELECT
+                diaries.id,
+                diaries.entry_date,
+                diaries.entry_time,
+                diaries.content_md,
+                diaries.mood,
+                diaries.weather,
+                diaries.location_name,
+                COALESCE(GROUP_CONCAT(diary_tags.name, ' '), '')
+            FROM diaries
+            LEFT JOIN diary_tag_links
+                ON diary_tag_links.diary_id = diaries.id
+                AND diary_tag_links.deleted_at IS NULL
+            LEFT JOIN diary_tags
+                ON diary_tags.id = diary_tag_links.tag_id
+                AND diary_tags.deleted_at IS NULL
+            WHERE diaries.deleted_at IS NULL
+            GROUP BY
+                diaries.id,
+                diaries.entry_date,
+                diaries.entry_time,
+                diaries.content_md,
+                diaries.mood,
+                diaries.weather,
+                diaries.location_name
+            """.trimIndent()
+        )
     }
 
     private fun rebuildTodoProjects(exec: (String) -> Unit) {

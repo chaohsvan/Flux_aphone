@@ -24,7 +24,7 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
         CalendarEventEntity::class,
         CalendarHolidayOverrideEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class FluxDatabase : RoomDatabase() {

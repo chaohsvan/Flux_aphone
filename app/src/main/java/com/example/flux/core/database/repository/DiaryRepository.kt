@@ -21,8 +21,17 @@ class DiaryRepository @Inject constructor(
     }
 
     fun searchDiaries(query: String): Flow<List<DiaryEntity>> {
-        // FTS syntax needs * for prefix matching usually, or we can format it here
-        val formattedQuery = "*$query*"
+        val formattedQuery = query
+            .trim()
+            .split(Regex("\\s+"))
+            .map { term ->
+                term
+                    .replace("\"", "")
+                    .replace("*", "")
+                    .trim()
+            }
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { "$it*" }
         return diaryDao.searchDiaries(formattedQuery)
     }
 
