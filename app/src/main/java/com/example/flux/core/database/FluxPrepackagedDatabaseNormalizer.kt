@@ -21,9 +21,10 @@ object FluxPrepackagedDatabaseNormalizer {
             rebuildTodoProjects(exec)
             rebuildTodos(exec)
             rebuildTodoSubtasks(exec)
+            rebuildTodoHistory(exec)
             rebuildCalendarEvents(exec)
             rebuildCalendarHolidays(exec)
-            exec("PRAGMA user_version=2")
+            exec("PRAGMA user_version=3")
             exec("COMMIT")
         } catch (throwable: Throwable) {
             exec("ROLLBACK")
@@ -201,6 +202,7 @@ object FluxPrepackagedDatabaseNormalizer {
     }
 
     private fun rebuildTodoSubtasks(exec: (String) -> Unit) {
+        exec("DROP INDEX IF EXISTS idx_todo_subtasks_todo")
         exec(
             """
             CREATE TABLE IF NOT EXISTS todo_subtasks_room (
@@ -232,6 +234,37 @@ object FluxPrepackagedDatabaseNormalizer {
         )
         exec("DROP TABLE todo_subtasks")
         exec("ALTER TABLE todo_subtasks_room RENAME TO todo_subtasks")
+        exec("CREATE INDEX idx_todo_subtasks_todo ON todo_subtasks(todo_id, deleted_at)")
+    }
+
+    private fun rebuildTodoHistory(exec: (String) -> Unit) {
+        exec("DROP INDEX IF EXISTS idx_todo_history_todo")
+        exec(
+            """
+            CREATE TABLE IF NOT EXISTS todo_history_room (
+                id TEXT NOT NULL PRIMARY KEY,
+                todo_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(todo_id) REFERENCES todos(id)
+            )
+            """.trimIndent()
+        )
+        exec(
+            """
+            INSERT OR REPLACE INTO todo_history_room (
+                id, todo_id, action, summary, payload_json, created_at
+            )
+            SELECT id, todo_id, action, summary, payload_json, created_at
+            FROM todo_history
+            WHERE id IS NOT NULL
+            """.trimIndent()
+        )
+        exec("DROP TABLE todo_history")
+        exec("ALTER TABLE todo_history_room RENAME TO todo_history")
+        exec("CREATE INDEX idx_todo_history_todo ON todo_history(todo_id, created_at)")
     }
 
     private fun rebuildCalendarEvents(exec: (String) -> Unit) {

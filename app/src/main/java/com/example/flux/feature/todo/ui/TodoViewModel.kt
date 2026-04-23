@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.flux.core.database.entity.TodoEntity
+import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.repository.TodoRepository
 import com.example.flux.core.domain.todo.ExportTodosUseCase
 import com.example.flux.core.domain.todo.ToggleTodoStatusUseCase
@@ -48,6 +49,7 @@ data class TodoFilterState(
     val status: TodoStatusFilter = TodoStatusFilter.ALL,
     val priority: TodoPriorityFilter = TodoPriorityFilter.ALL,
     val time: TodoTimeFilter = TodoTimeFilter.ALL,
+    val projectId: String? = null,
     val customStartDate: String = "",
     val customEndDate: String = ""
 ) {
@@ -56,6 +58,7 @@ data class TodoFilterState(
             status != TodoStatusFilter.ALL ||
             priority != TodoPriorityFilter.ALL ||
             time != TodoTimeFilter.ALL ||
+            projectId != null ||
             customStartDate.isNotBlank() ||
             customEndDate.isNotBlank()
 }
@@ -69,6 +72,13 @@ class TodoViewModel @Inject constructor(
 
     private val _filterState = MutableStateFlow(TodoFilterState())
     val filterState = _filterState.asStateFlow()
+
+    val projects: StateFlow<List<TodoProjectEntity>> = todoRepository.getActiveProjects()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     val todos: StateFlow<List<TodoEntity>> = combine(
         todoRepository.getActiveTodos(),
@@ -99,6 +109,10 @@ class TodoViewModel @Inject constructor(
 
     fun setTimeFilter(time: TodoTimeFilter) {
         _filterState.update { it.copy(time = time) }
+    }
+
+    fun setProjectFilter(projectId: String?) {
+        _filterState.update { it.copy(projectId = projectId) }
     }
 
     fun updateCustomStartDate(date: String) {
@@ -134,6 +148,23 @@ class TodoViewModel @Inject constructor(
 
     fun clearSelection() {
         _selectedIds.value = emptySet()
+    }
+
+    fun addProject(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            todoRepository.createProject(trimmed)
+        }
+    }
+
+    fun deleteProject(projectId: String) {
+        viewModelScope.launch {
+            todoRepository.softDeleteProject(projectId)
+            _filterState.update { state ->
+                if (state.projectId == projectId) state.copy(projectId = null) else state
+            }
+        }
     }
 
     fun batchDelete() {
@@ -185,7 +216,11 @@ class TodoViewModel @Inject constructor(
             list.forEachIndexed { i, todo ->
                 val newSortOrder = i
                 if (todo.sortOrder != newSortOrder) {
-                    todoRepository.saveTodo(todo.copy(sortOrder = newSortOrder))
+                    todoRepository.saveTodoWithHistory(
+                        todo.copy(sortOrder = newSortOrder, updatedAt = TimeUtil.getCurrentIsoTime(), version = todo.version + 1),
+                        "reorder",
+                        "调整排序"
+                    )
                 }
             }
         }
@@ -197,12 +232,12 @@ class TodoViewModel @Inject constructor(
         }
     }
 
-    fun addTodo(title: String, description: String, priority: String) {
+    fun addTodo(title: String, description: String, priority: String, projectId: String?) {
         viewModelScope.launch {
             val now = com.example.flux.core.util.TimeUtil.getCurrentIsoTime()
             val newTodo = TodoEntity(
                 id = com.example.flux.core.util.TimeUtil.generateUuid(),
-                projectId = null,
+                projectId = projectId,
                 title = title,
                 description = description,
                 status = "pending",
@@ -218,7 +253,7 @@ class TodoViewModel @Inject constructor(
                 deletedAt = null,
                 version = 1
             )
-            todoRepository.saveTodo(newTodo)
+            todoRepository.saveTodoWithHistory(newTodo, "create", "创建待办")
         }
     }
 
@@ -243,8 +278,9 @@ class TodoViewModel @Inject constructor(
             TodoPriorityFilter.HIGH -> priority == "high"
         }
 
+        val matchesProject = filter.projectId == null || projectId == filter.projectId
         val matchesTime = matchesTimeFilter(filter)
-        return matchesQuery && matchesStatus && matchesPriority && matchesTime
+        return matchesQuery && matchesStatus && matchesPriority && matchesProject && matchesTime
     }
 
     private fun TodoEntity.matchesTimeFilter(filter: TodoFilterState): Boolean {

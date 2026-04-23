@@ -11,13 +11,15 @@ class ToggleTodoStatusUseCase @Inject constructor(
         val todo = todoRepository.getTodoById(id) ?: return
         val now = TimeUtil.getCurrentIsoTime()
         val newStatus = if (currentStatus == "completed") "pending" else "completed"
-        todoRepository.saveTodo(
+        todoRepository.saveTodoWithHistory(
             todo.copy(
                 status = newStatus,
                 completedAt = if (newStatus == "completed") now else null,
                 updatedAt = now,
                 version = todo.version + 1
-            )
+            ),
+            action = if (newStatus == "completed") "complete" else "reopen",
+            summary = if (newStatus == "completed") "标记完成" else "重新打开"
         )
     }
 }

@@ -1,24 +1,47 @@
 package com.example.flux.feature.todo.ui
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.flux.core.database.entity.TodoProjectEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoInputSheet(
+    projects: List<TodoProjectEntity>,
     onDismiss: () -> Unit,
-    onSubmit: (String, String, String) -> Unit
+    onCreateProject: (String) -> Unit,
+    onSubmit: (String, String, String, String?) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var isHighPriority by remember { mutableStateOf(false) }
+    var selectedProjectId by remember { mutableStateOf<String?>(null) }
+    var newProjectName by remember { mutableStateOf("") }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss
-    ) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -44,16 +67,62 @@ fun TodoInputSheet(
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("备注 (可选)") },
+                label = { Text("备注") },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
+            Text("项目标签", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow {
+                item {
+                    FilterChip(
+                        selected = selectedProjectId == null,
+                        onClick = { selectedProjectId = null },
+                        label = { Text("无标签") },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+                items(projects, key = { it.id }) { project ->
+                    FilterChip(
+                        selected = selectedProjectId == project.id,
+                        onClick = { selectedProjectId = project.id },
+                        label = { Text(project.name) },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = newProjectName,
+                    onValueChange = { newProjectName = it },
+                    label = { Text("新项目标签") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        val name = newProjectName.trim()
+                        if (name.isNotBlank()) {
+                            onCreateProject(name)
+                            newProjectName = ""
+                        }
+                    },
+                    enabled = newProjectName.isNotBlank()
+                ) {
+                    Text("添加")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     checked = isHighPriority,
                     onCheckedChange = { isHighPriority = it }
@@ -66,7 +135,7 @@ fun TodoInputSheet(
             Button(
                 onClick = {
                     if (title.isNotBlank()) {
-                        onSubmit(title, description, if (isHighPriority) "high" else "normal")
+                        onSubmit(title.trim(), description.trim(), if (isHighPriority) "high" else "normal", selectedProjectId)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

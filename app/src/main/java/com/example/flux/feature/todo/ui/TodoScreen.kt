@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -46,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.domain.todo.TodoExportFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +58,7 @@ fun TodoScreen(
     viewModel: TodoViewModel = hiltViewModel()
 ) {
     val todos by viewModel.todos.collectAsState()
+    val projects by viewModel.projects.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
     val context = LocalContext.current
@@ -80,7 +84,7 @@ fun TodoScreen(
                     title = { Text("已选择 ${selectedIds.size} 项") },
                     navigationIcon = {
                         IconButton(onClick = { viewModel.clearSelection() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel")
+                            Icon(Icons.Default.Close, contentDescription = "取消选择")
                         }
                     },
                     actions = {
@@ -91,7 +95,7 @@ fun TodoScreen(
                             Text("反选")
                         }
                         IconButton(onClick = { showExportSheet = true }) {
-                            Icon(Icons.Default.Share, contentDescription = "Export Selected")
+                            Icon(Icons.Default.Share, contentDescription = "导出所选")
                         }
                         if (selectedIds.size == 1) {
                             val selectedId = selectedIds.first()
@@ -109,7 +113,11 @@ fun TodoScreen(
                             Text("普通")
                         }
                         IconButton(onClick = { viewModel.batchDelete() }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Selected", tint = MaterialTheme.colorScheme.error)
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "删除所选",
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -127,7 +135,7 @@ fun TodoScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索") },
                         trailingIcon = {
                             TextButton(onClick = { showFilterSheet = true }) {
                                 Text(
@@ -146,7 +154,7 @@ fun TodoScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddSheet = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Todo")
+                Icon(Icons.Default.Add, contentDescription = "新增待办")
             }
         }
     ) { paddingValues ->
@@ -171,6 +179,7 @@ fun TodoScreen(
                 ) { todo ->
                     TodoItemRow(
                         todo = todo,
+                        projectName = projects.firstOrNull { it.id == todo.projectId }?.name,
                         isSelected = selectedIds.contains(todo.id),
                         onToggle = { id, currentStatus -> viewModel.toggleStatus(id, currentStatus) },
                         onClick = {
@@ -192,9 +201,13 @@ fun TodoScreen(
     if (showFilterSheet) {
         TodoFilterSheet(
             filterState = filterState,
+            projects = projects,
             onStatusChange = viewModel::setStatusFilter,
             onPriorityChange = viewModel::setPriorityFilter,
             onTimeChange = viewModel::setTimeFilter,
+            onProjectChange = viewModel::setProjectFilter,
+            onCreateProject = viewModel::addProject,
+            onDeleteProject = viewModel::deleteProject,
             onCustomStartDateChange = viewModel::updateCustomStartDate,
             onCustomEndDateChange = viewModel::updateCustomEndDate,
             onClear = viewModel::clearFilters,
@@ -215,9 +228,11 @@ fun TodoScreen(
 
     if (showAddSheet) {
         TodoInputSheet(
+            projects = projects,
             onDismiss = { showAddSheet = false },
-            onSubmit = { title, desc, priority ->
-                viewModel.addTodo(title, desc, priority)
+            onCreateProject = viewModel::addProject,
+            onSubmit = { title, desc, priority, projectId ->
+                viewModel.addTodo(title, desc, priority, projectId)
                 showAddSheet = false
             }
         )
@@ -256,14 +271,20 @@ private fun TodoExportSheet(
 @Composable
 private fun TodoFilterSheet(
     filterState: TodoFilterState,
+    projects: List<TodoProjectEntity>,
     onStatusChange: (TodoStatusFilter) -> Unit,
     onPriorityChange: (TodoPriorityFilter) -> Unit,
     onTimeChange: (TodoTimeFilter) -> Unit,
+    onProjectChange: (String?) -> Unit,
+    onCreateProject: (String) -> Unit,
+    onDeleteProject: (String) -> Unit,
     onCustomStartDateChange: (String) -> Unit,
     onCustomEndDateChange: (String) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var newProjectName by remember { mutableStateOf("") }
+
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -288,6 +309,54 @@ private fun TodoFilterSheet(
                 item { TodoFilterChip(filterState.status == TodoStatusFilter.PENDING, "待办") { onStatusChange(TodoStatusFilter.PENDING) } }
                 item { TodoFilterChip(filterState.status == TodoStatusFilter.IN_PROGRESS, "进行中") { onStatusChange(TodoStatusFilter.IN_PROGRESS) } }
                 item { TodoFilterChip(filterState.status == TodoStatusFilter.COMPLETED, "完成") { onStatusChange(TodoStatusFilter.COMPLETED) } }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("项目标签", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow {
+                item {
+                    TodoFilterChip(filterState.projectId == null, "全部") {
+                        onProjectChange(null)
+                    }
+                }
+                items(projects, key = { it.id }) { project ->
+                    FilterChip(
+                        selected = filterState.projectId == project.id,
+                        onClick = { onProjectChange(project.id) },
+                        label = { Text(project.name) },
+                        trailingIcon = {
+                            IconButton(onClick = { onDeleteProject(project.id) }) {
+                                Icon(Icons.Default.Close, contentDescription = "删除标签")
+                            }
+                        },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = newProjectName,
+                    onValueChange = { newProjectName = it },
+                    label = { Text("新项目标签") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        val name = newProjectName.trim()
+                        if (name.isNotBlank()) {
+                            onCreateProject(name)
+                            newProjectName = ""
+                        }
+                    },
+                    enabled = newProjectName.isNotBlank()
+                ) {
+                    Text("添加")
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

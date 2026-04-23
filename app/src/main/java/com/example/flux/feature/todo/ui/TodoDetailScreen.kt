@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.flux.core.database.entity.TodoHistoryEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +60,7 @@ fun TodoDetailScreen(
                 title = { Text("待办详情") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -69,13 +71,17 @@ fun TodoDetailScreen(
                         },
                         enabled = uiState.title.isNotBlank()
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = "Save")
+                        Icon(Icons.Default.Check, contentDescription = "保存")
                     }
                     IconButton(onClick = {
                         viewModel.deleteTodo()
                         onNavigateUp()
                     }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "删除",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             )
@@ -96,6 +102,7 @@ fun TodoDetailScreen(
                     uiState = uiState,
                     onTitleChange = viewModel::updateTitle,
                     onDescriptionChange = viewModel::updateDescription,
+                    onProjectChange = viewModel::updateProjectId,
                     onPriorityChange = viewModel::setPriority,
                     onStatusChange = viewModel::setStatus,
                     onStartAtChange = viewModel::updateStartAt,
@@ -104,6 +111,12 @@ fun TodoDetailScreen(
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TodoHistorySection(history = uiState.history)
+
+                Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -125,7 +138,11 @@ fun TodoDetailScreen(
                             Text(
                                 text = subtask.title,
                                 textDecoration = if (isCompleted) TextDecoration.LineThrough else null,
-                                color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                                color = if (isCompleted) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
                             )
                         }
                     }
@@ -162,6 +179,7 @@ private fun TodoEditableFields(
     uiState: TodoDetailUiState,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
+    onProjectChange: (String?) -> Unit,
     onPriorityChange: (String) -> Unit,
     onStatusChange: (String) -> Unit,
     onStartAtChange: (String) -> Unit,
@@ -185,6 +203,26 @@ private fun TodoEditableFields(
             modifier = Modifier.fillMaxWidth()
         )
 
+        Text("项目标签", style = MaterialTheme.typography.titleMedium)
+        LazyRow {
+            item {
+                FilterChip(
+                    selected = uiState.projectId == null,
+                    onClick = { onProjectChange(null) },
+                    label = { Text("无标签") },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+            items(uiState.projects, key = { it.id }) { project ->
+                FilterChip(
+                    selected = uiState.projectId == project.id,
+                    onClick = { onProjectChange(project.id) },
+                    label = { Text(project.name) },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = uiState.startAt,
@@ -207,7 +245,7 @@ private fun TodoEditableFields(
         OutlinedTextField(
             value = uiState.reminderMinutesText,
             onValueChange = onReminderChange,
-            label = { Text("提醒提前分钟") },
+            label = { Text("提前提醒分钟") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
@@ -242,6 +280,28 @@ private fun TodoEditableFields(
                 onClick = { onStatusChange("completed") },
                 label = { Text("完成") }
             )
+        }
+    }
+}
+
+@Composable
+private fun TodoHistorySection(history: List<TodoHistoryEntity>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("历史记录", style = MaterialTheme.typography.titleMedium)
+        if (history.isEmpty()) {
+            Text(
+                text = "暂无历史记录",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            history.take(5).forEach { item ->
+                Text(
+                    text = "${item.createdAt.take(16)}  ${item.summary}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

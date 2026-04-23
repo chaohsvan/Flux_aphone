@@ -52,4 +52,7 @@ interface TodoDao {
 
     @Query("UPDATE todos SET priority = :priority, is_important = :isImportant, updated_at = :updatedAt WHERE id IN (:ids)")
     suspend fun updatePriority(ids: List<String>, priority: String, isImportant: Int, updatedAt: String)
+
+    @Query("UPDATE todos SET project_id = NULL, updated_at = :updatedAt, version = version + 1 WHERE project_id = :projectId")
+    suspend fun clearProject(projectId: String, updatedAt: String)
 }

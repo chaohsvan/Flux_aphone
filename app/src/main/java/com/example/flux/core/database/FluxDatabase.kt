@@ -8,6 +8,7 @@ import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.DiaryTagEntity
 import com.example.flux.core.database.entity.DiaryTagLinkEntity
 import com.example.flux.core.database.entity.TodoEntity
+import com.example.flux.core.database.entity.TodoHistoryEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.entity.TodoSubtaskEntity
 
@@ -19,16 +20,19 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
         TodoProjectEntity::class,
         TodoEntity::class,
         TodoSubtaskEntity::class,
+        TodoHistoryEntity::class,
         CalendarEventEntity::class,
         CalendarHolidayOverrideEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class FluxDatabase : RoomDatabase() {
     abstract fun diaryDao(): com.example.flux.core.database.dao.DiaryDao
     abstract fun todoDao(): com.example.flux.core.database.dao.TodoDao
     abstract fun todoSubtaskDao(): com.example.flux.core.database.dao.TodoSubtaskDao
+    abstract fun todoProjectDao(): com.example.flux.core.database.dao.TodoProjectDao
+    abstract fun todoHistoryDao(): com.example.flux.core.database.dao.TodoHistoryDao
     abstract fun eventDao(): com.example.flux.core.database.dao.EventDao
     abstract fun holidayDao(): com.example.flux.core.database.dao.HolidayDao
 }

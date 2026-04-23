@@ -2,8 +2,17 @@ package com.example.flux.feature.todo.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +25,7 @@ import com.example.flux.ui.theme.FluxTodoRed
 @Composable
 fun TodoItemRow(
     todo: TodoEntity,
+    projectName: String? = null,
     isSelected: Boolean = false,
     onToggle: (String, String) -> Unit,
     onClick: () -> Unit,
@@ -59,9 +69,13 @@ fun TodoItemRow(
                 Text(
                     text = todo.title,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant 
-                            else if (isHighPriority) FluxTodoRed 
-                            else MaterialTheme.colorScheme.onSurface,
+                    color = if (isCompleted) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else if (isHighPriority) {
+                        FluxTodoRed
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                     textDecoration = if (isCompleted) TextDecoration.LineThrough else null
                 )
                 if (todo.description.isNotBlank()) {
@@ -71,15 +85,16 @@ fun TodoItemRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                TodoMetaLine(todo)
+                TodoMetaLine(todo, projectName)
             }
         }
     }
 }
 
 @Composable
-private fun TodoMetaLine(todo: TodoEntity) {
+private fun TodoMetaLine(todo: TodoEntity, projectName: String?) {
     val metadata = listOfNotNull(
+        projectName?.let { "项目：$it" },
         todo.startAt?.let { "开始 $it" },
         todo.dueAt?.let { "截止 $it" },
         todo.reminderMinutes?.let { "提前 ${it} 分钟提醒" }

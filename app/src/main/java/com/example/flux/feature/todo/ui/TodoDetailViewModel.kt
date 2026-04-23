@@ -4,11 +4,17 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.flux.core.database.entity.TodoEntity
+import com.example.flux.core.database.entity.TodoHistoryEntity
+import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.entity.TodoSubtaskEntity
 import com.example.flux.core.database.repository.TodoRepository
 import com.example.flux.core.util.TimeUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,9 +24,12 @@ data class TodoDetailUiState(
     val description: String = "",
     val priority: String = "normal",
     val status: String = "pending",
+    val projectId: String? = null,
     val startAt: String = "",
     val dueAt: String = "",
     val reminderMinutesText: String = "",
+    val projects: List<TodoProjectEntity> = emptyList(),
+    val history: List<TodoHistoryEntity> = emptyList(),
     val subtasks: List<TodoSubtaskEntity> = emptyList(),
     val isFormInitialized: Boolean = false,
     val isLoading: Boolean = false
@@ -40,34 +49,48 @@ class TodoDetailViewModel @Inject constructor(
     init {
         if (todoId != null) {
             loadData(todoId)
+        } else {
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 
     private fun loadData(id: String) {
         viewModelScope.launch {
-            // Wait, we don't have getTodoById as a Flow. Let's assume we fetch it once or listen to subtasks.
-            // Actually, for simplicity let's just listen to subtasks as Flow and fetch Todo once.
             val todo = todoRepository.getTodoById(id)
-            if (todo != null) {
-                todoRepository.getSubtasksForTodo(id).collect { subtasks ->
-                    _uiState.update { 
-                        it.copy(
-                            todo = todo,
-                            title = if (it.isFormInitialized) it.title else todo.title,
-                            description = if (it.isFormInitialized) it.description else todo.description,
-                            priority = if (it.isFormInitialized) it.priority else todo.priority,
-                            status = if (it.isFormInitialized) it.status else todo.status,
-                            startAt = if (it.isFormInitialized) it.startAt else todo.startAt.orEmpty(),
-                            dueAt = if (it.isFormInitialized) it.dueAt else todo.dueAt.orEmpty(),
-                            reminderMinutesText = if (it.isFormInitialized) it.reminderMinutesText else todo.reminderMinutes?.toString().orEmpty(),
-                            subtasks = subtasks,
-                            isFormInitialized = true,
-                            isLoading = false
-                        )
-                    }
-                }
-            } else {
+            if (todo == null) {
                 _uiState.update { it.copy(isLoading = false) }
+                return@launch
+            }
+
+            combine(
+                todoRepository.getSubtasksForTodo(id),
+                todoRepository.getActiveProjects(),
+                todoRepository.getHistoryForTodo(id)
+            ) { subtasks, projects, history ->
+                Triple(subtasks, projects, history)
+            }.collect { (subtasks, projects, history) ->
+                _uiState.update { state ->
+                    state.copy(
+                        todo = state.todo ?: todo,
+                        title = if (state.isFormInitialized) state.title else todo.title,
+                        description = if (state.isFormInitialized) state.description else todo.description,
+                        priority = if (state.isFormInitialized) state.priority else todo.priority,
+                        status = if (state.isFormInitialized) state.status else todo.status,
+                        projectId = if (state.isFormInitialized) state.projectId else todo.projectId,
+                        startAt = if (state.isFormInitialized) state.startAt else todo.startAt.orEmpty(),
+                        dueAt = if (state.isFormInitialized) state.dueAt else todo.dueAt.orEmpty(),
+                        reminderMinutesText = if (state.isFormInitialized) {
+                            state.reminderMinutesText
+                        } else {
+                            todo.reminderMinutes?.toString().orEmpty()
+                        },
+                        projects = projects,
+                        history = history,
+                        subtasks = subtasks,
+                        isFormInitialized = true,
+                        isLoading = false
+                    )
+                }
             }
         }
     }
@@ -78,6 +101,10 @@ class TodoDetailViewModel @Inject constructor(
 
     fun updateDescription(value: String) {
         _uiState.update { it.copy(description = value) }
+    }
+
+    fun updateProjectId(value: String?) {
+        _uiState.update { it.copy(projectId = value) }
     }
 
     fun updateStartAt(value: String) {
@@ -115,6 +142,7 @@ class TodoDetailViewModel @Inject constructor(
                 else -> currentTodo.completedAt
             }
             val updated = currentTodo.copy(
+                projectId = state.projectId,
                 title = state.title.trim(),
                 description = state.description.trim(),
                 status = state.status,
@@ -127,7 +155,7 @@ class TodoDetailViewModel @Inject constructor(
                 updatedAt = now,
                 version = currentTodo.version + 1
             )
-            todoRepository.saveTodo(updated)
+            todoRepository.saveTodoWithHistory(updated, "edit", "更新待办详情")
             _uiState.update { it.copy(todo = updated) }
         }
     }

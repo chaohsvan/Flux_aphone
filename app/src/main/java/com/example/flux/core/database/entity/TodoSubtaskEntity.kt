@@ -3,6 +3,7 @@ package com.example.flux.core.database.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
@@ -13,6 +14,9 @@ import androidx.room.PrimaryKey
             parentColumns = ["id"],
             childColumns = ["todo_id"]
         )
+    ],
+    indices = [
+        Index(name = "idx_todo_subtasks_todo", value = ["todo_id", "deleted_at"])
     ]
 )
 data class TodoSubtaskEntity(
