@@ -19,6 +19,9 @@ import javax.inject.Inject
 import android.content.Context
 import android.net.Uri
 import com.example.flux.core.domain.diary.ExportDiariesUseCase
+import com.example.flux.core.domain.diary.DiaryExportFormat
+import com.example.flux.core.domain.trash.ObserveTrashSummaryUseCase
+import com.example.flux.core.domain.trash.TrashSummary
 
 data class DiaryFilterOptions(
     val months: List<String> = emptyList(),
@@ -29,7 +32,8 @@ data class DiaryFilterOptions(
 @HiltViewModel
 class DiaryViewModel @Inject constructor(
     private val diaryRepository: DiaryRepository,
-    private val exportDiariesUseCase: ExportDiariesUseCase
+    private val exportDiariesUseCase: ExportDiariesUseCase,
+    observeTrashSummaryUseCase: ObserveTrashSummaryUseCase
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -52,6 +56,13 @@ class DiaryViewModel @Inject constructor(
 
     private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedIds = _selectedIds.asStateFlow()
+
+    val trashSummary: StateFlow<TrashSummary> = observeTrashSummaryUseCase()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TrashSummary()
+        )
 
     private val rawFilters = combine(
         _searchQuery,
@@ -191,11 +202,11 @@ class DiaryViewModel @Inject constructor(
         }
     }
 
-    fun exportSelectedToUri(context: Context, uri: Uri) {
+    fun exportSelectedToUri(context: Context, uri: Uri, format: DiaryExportFormat) {
         viewModelScope.launch {
             val ids = _selectedIds.value
             if (ids.isNotEmpty()) {
-                exportDiariesUseCase(context, ids, uri)
+                exportDiariesUseCase(context, ids, uri, format)
                 clearSelection()
             }
         }

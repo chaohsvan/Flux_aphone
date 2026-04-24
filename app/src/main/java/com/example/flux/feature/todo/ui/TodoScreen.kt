@@ -1,7 +1,9 @@
-package com.example.flux.feature.todo.ui
+﻿package com.example.flux.feature.todo.ui
 
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -24,6 +28,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -45,7 +51,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.flux.core.database.entity.TodoProjectEntity
@@ -55,23 +64,35 @@ import com.example.flux.core.domain.todo.TodoExportFormat
 @Composable
 fun TodoScreen(
     onNavigateToDetail: (String) -> Unit,
+    onNavigateToTrash: () -> Unit,
+    onOpenGlobalSearch: () -> Unit,
     viewModel: TodoViewModel = hiltViewModel()
 ) {
     val todos by viewModel.todos.collectAsState()
+    val stats by viewModel.stats.collectAsState()
     val projects by viewModel.projects.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
+    val trashSummary by viewModel.trashSummary.collectAsState()
+    val hasStructuredFilters = filterState.status != TodoStatusFilter.ALL ||
+        filterState.priority != TodoPriorityFilter.ALL ||
+        filterState.time != TodoTimeFilter.ALL ||
+        filterState.projectId != null
     val context = LocalContext.current
     var showAddSheet by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
     var showExportSheet by remember { mutableStateOf(false) }
     var pendingExportFormat by remember { mutableStateOf<TodoExportFormat?>(null) }
+    val listState = rememberLazyListState()
+    var draggingTodoId by remember { mutableStateOf<String?>(null) }
+    var draggedOffset by remember { mutableStateOf(0f) }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("*/*"),
         onResult = { uri ->
             val format = pendingExportFormat
             if (uri != null && format != null) {
                 viewModel.exportSelectedToUri(context, uri, format)
+                Toast.makeText(context, "\u5df2\u5bfc\u51fa\u5f85\u529e", Toast.LENGTH_SHORT).show()
             }
             pendingExportFormat = null
         }
@@ -81,41 +102,50 @@ fun TodoScreen(
         topBar = {
             if (selectedIds.isNotEmpty()) {
                 TopAppBar(
-                    title = { Text("已选择 ${selectedIds.size} 项") },
+                    title = { Text("\u5df2\u9009\u62e9 ${selectedIds.size} \u9879") },
                     navigationIcon = {
                         IconButton(onClick = { viewModel.clearSelection() }) {
-                            Icon(Icons.Default.Close, contentDescription = "取消选择")
+                            Icon(Icons.Default.Close, contentDescription = "鍙栨秷閫夋嫨")
                         }
                     },
                     actions = {
                         TextButton(onClick = { viewModel.selectAllVisible() }) {
-                            Text("全选")
+                            Text("\u5168\u9009")
                         }
                         TextButton(onClick = { viewModel.invertVisibleSelection() }) {
-                            Text("反选")
+                            Text("\u53cd\u9009")
                         }
                         IconButton(onClick = { showExportSheet = true }) {
-                            Icon(Icons.Default.Share, contentDescription = "导出所选")
+                            Icon(Icons.Default.Share, contentDescription = "\u5bfc\u51fa\u6240\u9009")
                         }
                         if (selectedIds.size == 1) {
                             val selectedId = selectedIds.first()
                             IconButton(onClick = { viewModel.moveTodoOrder(selectedId, moveUp = true) }) {
-                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移")
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "涓婄Щ")
                             }
                             IconButton(onClick = { viewModel.moveTodoOrder(selectedId, moveUp = false) }) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移")
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "涓嬬Щ")
                             }
                         }
-                        TextButton(onClick = { viewModel.batchMarkHighPriority() }) {
-                            Text("高")
+                        TextButton(onClick = {
+                            viewModel.batchMarkHighPriority()
+                            Toast.makeText(context, "\u5df2\u8bbe\u4e3a\u9ad8\u4f18\u5148\u7ea7", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Text("\u9ad8\u4f18")
                         }
-                        TextButton(onClick = { viewModel.batchMarkNormalPriority() }) {
-                            Text("普通")
+                        TextButton(onClick = {
+                            viewModel.batchMarkNormalPriority()
+                            Toast.makeText(context, "\u5df2\u8bbe\u4e3a\u666e\u901a\u4f18\u5148\u7ea7", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Text("\u666e\u901a")
                         }
-                        IconButton(onClick = { viewModel.batchDelete() }) {
+                        IconButton(onClick = {
+                            viewModel.batchDelete()
+                            Toast.makeText(context, "\u5df2\u79fb\u5165\u56de\u6536\u7ad9", Toast.LENGTH_SHORT).show()
+                        }) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "删除所选",
+                                contentDescription = "\u5220\u9664\u6240\u9009",
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -125,36 +155,35 @@ fun TodoScreen(
                     )
                 )
             } else {
-                Column {
-                    TopAppBar(title = { Text("待办事项") })
-                    OutlinedTextField(
-                        value = filterState.query,
-                        onValueChange = viewModel::updateSearchQuery,
-                        placeholder = { Text("搜索待办...") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索") },
-                        trailingIcon = {
-                            TextButton(onClick = { showFilterSheet = true }) {
-                                Text(
-                                    text = "筛选",
-                                    color = if (filterState.hasActiveFilters) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
+                TopAppBar(
+                    title = { Text("\u5f85\u529e\u4e8b\u9879") },
+                    actions = {
+                        IconButton(onClick = onOpenGlobalSearch) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "\u7edf\u4e00\u641c\u7d22"
+                            )
                         }
-                    )
-                }
+                        TextButton(onClick = { showFilterSheet = true }) {
+                            Text(
+                                text = "\u7b5b\u9009",
+                                color = if (hasStructuredFilters) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                        TextButton(onClick = onNavigateToTrash) {
+                            Text(if (trashSummary.total > 0) "\u56de\u6536\u7ad9 ${trashSummary.total}" else "\u56de\u6536\u7ad9")
+                        }
+                    }
+                )
             }
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddSheet = true }) {
-                Icon(Icons.Default.Add, contentDescription = "新增待办")
+                Icon(Icons.Default.Add, contentDescription = "\u65b0\u589e\u5f85\u529e")
             }
         }
     ) { paddingValues ->
@@ -165,18 +194,28 @@ fun TodoScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = if (filterState.hasActiveFilters) "没有符合筛选条件的待办" else "暂无待办")
+                Text(
+                    text = if (filterState.hasActiveFilters) {
+                        "\u6ca1\u6709\u7b26\u5408\u7b5b\u9009\u6761\u4ef6\u7684\u5f85\u529e"
+                    } else {
+                        "\u6682\u65e0\u5f85\u529e"
+                    }
+                )
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                items(
+                item(key = "todo_stats") {
+                    TodoStatsRow(stats = stats)
+                }
+                itemsIndexed(
                     items = todos,
-                    key = { it.id }
-                ) { todo ->
+                    key = { _, todo -> todo.id }
+                ) { _, todo ->
                     TodoItemRow(
                         todo = todo,
                         projectName = projects.firstOrNull { it.id == todo.projectId }?.name,
@@ -191,7 +230,57 @@ fun TodoScreen(
                         },
                         onLongClick = {
                             viewModel.toggleSelection(todo.id)
-                        }
+                        },
+                        modifier = Modifier
+                            .graphicsLayer {
+                                val isDragging = draggingTodoId == todo.id
+                                translationY = if (isDragging) draggedOffset else 0f
+                                alpha = if (isDragging) 0.92f else 1f
+                            }
+                            .pointerInput(
+                                todo.id,
+                                todos,
+                                selectedIds.isEmpty(),
+                                filterState.hasActiveFilters
+                            ) {
+                                if (selectedIds.isEmpty() && !filterState.hasActiveFilters) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            draggingTodoId = todo.id
+                                            draggedOffset = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingTodoId = null
+                                            draggedOffset = 0f
+                                        },
+                                        onDragEnd = {
+                                            draggingTodoId = null
+                                            draggedOffset = 0f
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            draggedOffset += dragAmount.y
+
+                                            val currentItem = listState.layoutInfo.visibleItemsInfo
+                                                .firstOrNull { it.key == todo.id }
+                                                ?: return@detectDragGesturesAfterLongPress
+                                            val draggedCenter = currentItem.offset + currentItem.size / 2f + draggedOffset
+                                            val targetItem = listState.layoutInfo.visibleItemsInfo
+                                                .filter { it.key != "todo_stats" && it.key != todo.id }
+                                                .firstOrNull { item ->
+                                                    draggedCenter >= item.offset &&
+                                                        draggedCenter <= item.offset + item.size
+                                                }
+                                                ?: return@detectDragGesturesAfterLongPress
+                                            val targetIndex = targetItem.index - 1
+                                            if (targetIndex in todos.indices) {
+                                                viewModel.moveTodoToIndex(todo.id, targetIndex)
+                                                draggedOffset = 0f
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                     )
                 }
             }
@@ -231,11 +320,79 @@ fun TodoScreen(
             projects = projects,
             onDismiss = { showAddSheet = false },
             onCreateProject = viewModel::addProject,
-            onSubmit = { title, desc, priority, projectId ->
-                viewModel.addTodo(title, desc, priority, projectId)
+            onSubmit = { title, desc, priority, projectId, dueAt ->
+                viewModel.addTodo(title, desc, priority, projectId, dueAt)
+                Toast.makeText(context, "\u5df2\u521b\u5efa\u5f85\u529e", Toast.LENGTH_SHORT).show()
                 showAddSheet = false
             }
         )
+    }
+}
+
+@Composable
+private fun TodoStatsRow(stats: TodoStats) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item { TodoStatCard("\u603b\u6570", stats.total.toString(), "\u6d3b\u8dc3\u5f85\u529e") }
+        item { TodoStatCard("\u4eca\u5929", stats.today.toString(), "\u4eca\u5929\u622a\u6b62") }
+        item { TodoStatCard("\u903e\u671f", stats.overdue.toString(), "\u9700\u8981\u5904\u7406", isWarning = stats.overdue > 0) }
+        item { TodoStatCard("\u8fdb\u884c\u4e2d", stats.inProgress.toString(), "\u6b63\u5728\u63a8\u8fdb") }
+        item { TodoStatCard("\u9ad8\u4f18\u5148\u7ea7", stats.highPriority.toString(), "\u4f18\u5148\u5173\u6ce8") }
+        item { TodoStatCard("\u5b8c\u6210\u7387", "${stats.completionPercent}%", "\u5df2\u5b8c\u6210 ${stats.completed}") }
+    }
+}
+
+@Composable
+private fun TodoStatCard(
+    title: String,
+    value: String,
+    subtitle: String,
+    isWarning: Boolean = false
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isWarning) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .width(116.dp)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isWarning) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isWarning) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
     }
 }
 
@@ -251,7 +408,7 @@ private fun TodoExportSheet(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text("导出待办", style = MaterialTheme.typography.titleLarge)
+            Text("\u5bfc\u51fa\u5f85\u529e", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(12.dp))
             TextButton(onClick = { onFormatSelected(TodoExportFormat.JSON) }, modifier = Modifier.fillMaxWidth()) {
                 Text("JSON")
@@ -295,28 +452,28 @@ private fun TodoFilterSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("筛选待办", style = MaterialTheme.typography.titleLarge)
+                Text("\u7b5b\u9009\u5f85\u529e", style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = onClear) {
-                    Text("清除")
+                    Text("\u6e05\u9664")
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Text("状态", style = MaterialTheme.typography.titleMedium)
+            Text("\u72b6\u6001", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow {
-                item { TodoFilterChip(filterState.status == TodoStatusFilter.ALL, "全部") { onStatusChange(TodoStatusFilter.ALL) } }
-                item { TodoFilterChip(filterState.status == TodoStatusFilter.PENDING, "待办") { onStatusChange(TodoStatusFilter.PENDING) } }
-                item { TodoFilterChip(filterState.status == TodoStatusFilter.IN_PROGRESS, "进行中") { onStatusChange(TodoStatusFilter.IN_PROGRESS) } }
-                item { TodoFilterChip(filterState.status == TodoStatusFilter.COMPLETED, "完成") { onStatusChange(TodoStatusFilter.COMPLETED) } }
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.ALL, "\u5168\u90e8") { onStatusChange(TodoStatusFilter.ALL) } }
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.PENDING, "\u5f85\u529e") { onStatusChange(TodoStatusFilter.PENDING) } }
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.IN_PROGRESS, "\u8fdb\u884c\u4e2d") { onStatusChange(TodoStatusFilter.IN_PROGRESS) } }
+                item { TodoFilterChip(filterState.status == TodoStatusFilter.COMPLETED, "\u5b8c\u6210") { onStatusChange(TodoStatusFilter.COMPLETED) } }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("项目标签", style = MaterialTheme.typography.titleMedium)
+            Text("\u9879\u76ee\u6807\u7b7e", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow {
                 item {
-                    TodoFilterChip(filterState.projectId == null, "全部") {
+                    TodoFilterChip(filterState.projectId == null, "\u5168\u90e8") {
                         onProjectChange(null)
                     }
                 }
@@ -327,7 +484,7 @@ private fun TodoFilterSheet(
                         label = { Text(project.name) },
                         trailingIcon = {
                             IconButton(onClick = { onDeleteProject(project.id) }) {
-                                Icon(Icons.Default.Close, contentDescription = "删除标签")
+                                Icon(Icons.Default.Close, contentDescription = "\u5220\u9664\u6807\u7b7e")
                             }
                         },
                         modifier = Modifier.padding(end = 8.dp)
@@ -340,7 +497,7 @@ private fun TodoFilterSheet(
                 OutlinedTextField(
                     value = newProjectName,
                     onValueChange = { newProjectName = it },
-                    label = { Text("新项目标签") },
+                    label = { Text("\u65b0\u9879\u76ee\u540d\u79f0") },
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
@@ -355,29 +512,29 @@ private fun TodoFilterSheet(
                     },
                     enabled = newProjectName.isNotBlank()
                 ) {
-                    Text("添加")
+                    Text("\u6dfb\u52a0")
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("优先级", style = MaterialTheme.typography.titleMedium)
+            Text("\u4f18\u5148\u7ea7", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow {
-                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.ALL, "全部") { onPriorityChange(TodoPriorityFilter.ALL) } }
-                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.NORMAL, "普通") { onPriorityChange(TodoPriorityFilter.NORMAL) } }
-                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.HIGH, "高优先级") { onPriorityChange(TodoPriorityFilter.HIGH) } }
+                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.ALL, "\u5168\u90e8") { onPriorityChange(TodoPriorityFilter.ALL) } }
+                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.NORMAL, "\u666e\u901a") { onPriorityChange(TodoPriorityFilter.NORMAL) } }
+                item { TodoFilterChip(filterState.priority == TodoPriorityFilter.HIGH, "\u9ad8\u4f18\u5148\u7ea7") { onPriorityChange(TodoPriorityFilter.HIGH) } }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("时间", style = MaterialTheme.typography.titleMedium)
+            Text("\u65f6\u95f4", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow {
-                item { TodoFilterChip(filterState.time == TodoTimeFilter.ALL, "全部") { onTimeChange(TodoTimeFilter.ALL) } }
-                item { TodoFilterChip(filterState.time == TodoTimeFilter.TODAY, "今天") { onTimeChange(TodoTimeFilter.TODAY) } }
-                item { TodoFilterChip(filterState.time == TodoTimeFilter.UPCOMING, "近期") { onTimeChange(TodoTimeFilter.UPCOMING) } }
-                item { TodoFilterChip(filterState.time == TodoTimeFilter.OVERDUE, "逾期") { onTimeChange(TodoTimeFilter.OVERDUE) } }
-                item { TodoFilterChip(filterState.time == TodoTimeFilter.SCHEDULED, "定时") { onTimeChange(TodoTimeFilter.SCHEDULED) } }
-                item { TodoFilterChip(filterState.time == TodoTimeFilter.CUSTOM, "自定义") { onTimeChange(TodoTimeFilter.CUSTOM) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.ALL, "\u5168\u90e8") { onTimeChange(TodoTimeFilter.ALL) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.TODAY, "\u4eca\u5929") { onTimeChange(TodoTimeFilter.TODAY) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.UPCOMING, "\u8fd1\u671f") { onTimeChange(TodoTimeFilter.UPCOMING) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.OVERDUE, "\u903e\u671f") { onTimeChange(TodoTimeFilter.OVERDUE) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.SCHEDULED, "\u5b9a\u65f6") { onTimeChange(TodoTimeFilter.SCHEDULED) } }
+                item { TodoFilterChip(filterState.time == TodoTimeFilter.CUSTOM, "\u81ea\u5b9a\u4e49") { onTimeChange(TodoTimeFilter.CUSTOM) } }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -388,7 +545,7 @@ private fun TodoFilterSheet(
                 OutlinedTextField(
                     value = filterState.customStartDate,
                     onValueChange = onCustomStartDateChange,
-                    label = { Text("开始日期") },
+                    label = { Text("\u5f00\u59cb\u65e5\u671f") },
                     placeholder = { Text("YYYY-MM-DD") },
                     singleLine = true,
                     modifier = Modifier.weight(1f)
@@ -396,7 +553,7 @@ private fun TodoFilterSheet(
                 OutlinedTextField(
                     value = filterState.customEndDate,
                     onValueChange = onCustomEndDateChange,
-                    label = { Text("结束日期") },
+                    label = { Text("\u7ed3\u675f\u65e5\u671f") },
                     placeholder = { Text("YYYY-MM-DD") },
                     singleLine = true,
                     modifier = Modifier.weight(1f)

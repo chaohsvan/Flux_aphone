@@ -17,8 +17,10 @@ interface TodoDao {
         ORDER BY 
             CASE WHEN status = 'completed' THEN 1 ELSE 0 END ASC,
             is_important DESC,
+            CASE WHEN due_at IS NULL OR due_at = '' THEN 1 ELSE 0 END ASC,
+            due_at ASC,
             sort_order ASC,
-            due_at ASC
+            created_at DESC
     """)
     fun getActiveTodos(): Flow<List<TodoEntity>>
 
@@ -28,6 +30,8 @@ interface TodoDao {
         ORDER BY 
             CASE WHEN status = 'completed' THEN 1 ELSE 0 END ASC,
             is_important DESC,
+            CASE WHEN due_at IS NULL OR due_at = '' THEN 1 ELSE 0 END ASC,
+            due_at ASC,
             sort_order ASC
     """)
     fun getTodosByDate(date: String): Flow<List<TodoEntity>>
@@ -37,6 +41,16 @@ interface TodoDao {
 
     @Query("SELECT * FROM todos WHERE id = :id LIMIT 1")
     suspend fun getTodoById(id: String): TodoEntity?
+
+    @Query("""
+        SELECT * FROM todos
+        WHERE deleted_at IS NULL
+          AND parent_todo_id = :parentTodoId
+          AND ((:dueAt IS NULL AND due_at IS NULL) OR due_at = :dueAt)
+          AND ((:startAt IS NULL AND start_at IS NULL) OR start_at = :startAt)
+        LIMIT 1
+    """)
+    suspend fun getActiveRecurringChild(parentTodoId: String, dueAt: String?, startAt: String?): TodoEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTodo(todo: TodoEntity)
@@ -52,6 +66,9 @@ interface TodoDao {
 
     @Query("UPDATE todos SET priority = :priority, is_important = :isImportant, updated_at = :updatedAt WHERE id IN (:ids)")
     suspend fun updatePriority(ids: List<String>, priority: String, isImportant: Int, updatedAt: String)
+
+    @Query("UPDATE todos SET sort_order = :sortOrder, updated_at = :updatedAt, version = version + 1 WHERE id = :id")
+    suspend fun updateSortOrder(id: String, sortOrder: Int, updatedAt: String)
 
     @Query("UPDATE todos SET project_id = NULL, updated_at = :updatedAt, version = version + 1 WHERE project_id = :projectId")
     suspend fun clearProject(projectId: String, updatedAt: String)

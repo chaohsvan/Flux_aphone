@@ -21,6 +21,9 @@ interface TodoSubtaskDao {
     @Query("UPDATE todo_subtasks SET is_completed = :isCompleted, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateCompleted(id: String, isCompleted: Int, updatedAt: String)
 
+    @Query("UPDATE todo_subtasks SET sort_order = :sortOrder, updated_at = :updatedAt WHERE id = :id")
+    suspend fun updateSortOrder(id: String, sortOrder: Int, updatedAt: String)
+
     @Query("UPDATE todo_subtasks SET deleted_at = :deletedAt, updated_at = :deletedAt WHERE id = :id")
     suspend fun softDeleteSubtask(id: String, deletedAt: String)
 }

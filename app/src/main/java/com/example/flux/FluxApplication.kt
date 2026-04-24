@@ -4,17 +4,20 @@ import android.app.Application
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.example.flux.core.database.FluxPrepackagedDatabaseNormalizer
+import com.example.flux.core.util.DataDirectoryInitializer
+import com.example.flux.core.util.DataPaths
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
 class FluxApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        DataDirectoryInitializer.ensure(this)
         normalizeExistingPrepackagedDatabase()
     }
 
     private fun normalizeExistingPrepackagedDatabase() {
-        val databaseFile = getDatabasePath("flux.db")
+        val databaseFile = DataPaths.databaseFile(this)
         if (!databaseFile.exists()) return
 
         SQLiteDatabase.openDatabase(

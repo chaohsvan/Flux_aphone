@@ -22,6 +22,7 @@ object FluxPrepackagedDatabaseNormalizer {
         try {
             rebuildDiaries(exec)
             rebuildDiaryTags(exec)
+            rebuildDiaryTagLinks(exec)
             rebuildDiarySearchIndex(exec)
             rebuildTodoProjects(exec)
             rebuildTodos(exec)
@@ -29,7 +30,9 @@ object FluxPrepackagedDatabaseNormalizer {
             rebuildTodoHistory(exec)
             rebuildCalendarEvents(exec)
             rebuildCalendarHolidays(exec)
-            exec("PRAGMA user_version=6")
+            rebuildCalendarStaticHolidays(exec)
+            rebuildAttachmentMetadata(exec)
+            exec("PRAGMA user_version=8")
             exec("COMMIT")
         } catch (throwable: Throwable) {
             exec("ROLLBACK")
@@ -119,6 +122,36 @@ object FluxPrepackagedDatabaseNormalizer {
         )
         exec("DROP TABLE diary_tags")
         exec("ALTER TABLE diary_tags_room RENAME TO diary_tags")
+    }
+
+    private fun rebuildDiaryTagLinks(exec: (String) -> Unit) {
+        exec("DROP INDEX IF EXISTS idx_diary_tag_links_tag")
+        exec(
+            """
+            CREATE TABLE IF NOT EXISTS diary_tag_links_room (
+                diary_id TEXT NOT NULL,
+                tag_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                deleted_at TEXT,
+                PRIMARY KEY(diary_id, tag_id),
+                FOREIGN KEY(diary_id) REFERENCES diaries(id),
+                FOREIGN KEY(tag_id) REFERENCES diary_tags(id)
+            )
+            """.trimIndent()
+        )
+        exec(
+            """
+            INSERT OR REPLACE INTO diary_tag_links_room (
+                diary_id, tag_id, created_at, deleted_at
+            )
+            SELECT diary_id, tag_id, created_at, deleted_at
+            FROM diary_tag_links
+            WHERE diary_id IS NOT NULL AND tag_id IS NOT NULL
+            """.trimIndent()
+        )
+        exec("DROP TABLE diary_tag_links")
+        exec("ALTER TABLE diary_tag_links_room RENAME TO diary_tag_links")
+        exec("CREATE INDEX idx_diary_tag_links_tag ON diary_tag_links(tag_id, deleted_at)")
     }
 
     private fun rebuildDiarySearchIndex(exec: (String) -> Unit) {
@@ -390,5 +423,90 @@ object FluxPrepackagedDatabaseNormalizer {
         )
         exec("DROP TABLE calendar_holidays")
         exec("ALTER TABLE calendar_holidays_room RENAME TO calendar_holidays")
+    }
+
+    private fun rebuildCalendarStaticHolidays(exec: (String) -> Unit) {
+        exec(
+            """
+            CREATE TABLE IF NOT EXISTS calendar_static_holidays (
+                day TEXT PRIMARY KEY,
+                is_holiday INTEGER NOT NULL DEFAULT 1,
+                name TEXT,
+                source TEXT NOT NULL DEFAULT 'chinese-days',
+                updated_at TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        exec(
+            """
+            CREATE TABLE IF NOT EXISTS calendar_static_holidays_room (
+                day TEXT NOT NULL PRIMARY KEY,
+                is_holiday INTEGER NOT NULL DEFAULT 1,
+                name TEXT,
+                source TEXT NOT NULL DEFAULT 'chinese-days',
+                updated_at TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        exec(
+            """
+            INSERT OR REPLACE INTO calendar_static_holidays_room (
+                day, is_holiday, name, source, updated_at
+            )
+            SELECT day, is_holiday, name, source, updated_at
+            FROM calendar_static_holidays
+            WHERE day IS NOT NULL
+            """.trimIndent()
+        )
+        exec("DROP TABLE calendar_static_holidays")
+        exec("ALTER TABLE calendar_static_holidays_room RENAME TO calendar_static_holidays")
+    }
+
+    private fun rebuildAttachmentMetadata(exec: (String) -> Unit) {
+        exec(
+            """
+            CREATE TABLE IF NOT EXISTS attachment_metadata (
+                relative_path TEXT NOT NULL PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                modified_at INTEGER NOT NULL,
+                sha256 TEXT NOT NULL,
+                reference_count INTEGER NOT NULL DEFAULT 0,
+                last_scanned_at TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        exec(
+            """
+            CREATE TABLE IF NOT EXISTS attachment_metadata_room (
+                relative_path TEXT NOT NULL PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                modified_at INTEGER NOT NULL,
+                sha256 TEXT NOT NULL,
+                reference_count INTEGER NOT NULL DEFAULT 0,
+                last_scanned_at TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        exec(
+            """
+            INSERT OR REPLACE INTO attachment_metadata_room (
+                relative_path, file_name, kind, size_bytes, modified_at, sha256, reference_count, last_scanned_at
+            )
+            SELECT
+                relative_path, file_name, kind, size_bytes, modified_at, sha256, reference_count, last_scanned_at
+            FROM attachment_metadata
+            WHERE relative_path IS NOT NULL
+            """.trimIndent()
+        )
+        exec("DROP TABLE attachment_metadata")
+        exec("ALTER TABLE attachment_metadata_room RENAME TO attachment_metadata")
+        exec("CREATE INDEX idx_attachment_metadata_kind ON attachment_metadata(kind)")
+        exec("CREATE INDEX idx_attachment_metadata_size ON attachment_metadata(size_bytes)")
+        exec("CREATE INDEX idx_attachment_metadata_modified ON attachment_metadata(modified_at)")
+        exec("CREATE INDEX idx_attachment_metadata_sha ON attachment_metadata(sha256)")
     }
 }

@@ -10,13 +10,13 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
 import com.example.flux.core.database.repository.TodoRepository
 import com.example.flux.core.util.TimeUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class TodoDetailUiState(
     val todo: TodoEntity? = null,
@@ -28,11 +28,15 @@ data class TodoDetailUiState(
     val startAt: String = "",
     val dueAt: String = "",
     val reminderMinutesText: String = "",
+    val recurrence: String = "none",
+    val recurrenceIntervalText: String = "1",
+    val recurrenceUntil: String = "",
     val projects: List<TodoProjectEntity> = emptyList(),
     val history: List<TodoHistoryEntity> = emptyList(),
     val subtasks: List<TodoSubtaskEntity> = emptyList(),
     val isFormInitialized: Boolean = false,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -84,6 +88,17 @@ class TodoDetailViewModel @Inject constructor(
                         } else {
                             todo.reminderMinutes?.toString().orEmpty()
                         },
+                        recurrence = if (state.isFormInitialized) state.recurrence else todo.recurrence,
+                        recurrenceIntervalText = if (state.isFormInitialized) {
+                            state.recurrenceIntervalText
+                        } else {
+                            todo.recurrenceInterval.coerceAtLeast(1).toString()
+                        },
+                        recurrenceUntil = if (state.isFormInitialized) {
+                            state.recurrenceUntil
+                        } else {
+                            todo.recurrenceUntil.orEmpty()
+                        },
                         projects = projects,
                         history = history,
                         subtasks = subtasks,
@@ -108,17 +123,34 @@ class TodoDetailViewModel @Inject constructor(
     }
 
     fun updateStartAt(value: String) {
-        _uiState.update { it.copy(startAt = value) }
+        _uiState.update { it.copy(startAt = value, errorMessage = null) }
     }
 
     fun updateDueAt(value: String) {
-        _uiState.update { it.copy(dueAt = value) }
+        _uiState.update { it.copy(dueAt = value, errorMessage = null) }
     }
 
     fun updateReminderMinutes(value: String) {
+        _uiState.update { it.copy(reminderMinutesText = value.filter(Char::isDigit).take(5), errorMessage = null) }
+    }
+
+    fun setRecurrence(value: String) {
         _uiState.update { state ->
-            state.copy(reminderMinutesText = value.filter { it.isDigit() }.take(5))
+            state.copy(
+                recurrence = value,
+                recurrenceIntervalText = if (value == "none") "1" else state.recurrenceIntervalText,
+                recurrenceUntil = if (value == "none") "" else state.recurrenceUntil,
+                errorMessage = null
+            )
         }
+    }
+
+    fun updateRecurrenceInterval(value: String) {
+        _uiState.update { it.copy(recurrenceIntervalText = value.filter(Char::isDigit).take(3), errorMessage = null) }
+    }
+
+    fun updateRecurrenceUntil(value: String) {
+        _uiState.update { it.copy(recurrenceUntil = value, errorMessage = null) }
     }
 
     fun setPriority(priority: String) {
@@ -129,11 +161,27 @@ class TodoDetailViewModel @Inject constructor(
         _uiState.update { it.copy(status = status) }
     }
 
-    fun saveTodo() {
+    fun saveTodo(onSaved: () -> Unit = {}) {
         val state = _uiState.value
         val currentTodo = state.todo ?: return
-        if (state.title.isBlank()) return
+        if (state.title.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "任务内容不能为空") }
+            return
+        }
+        if (!TimeUtil.isValidDateOrDateTime(state.startAt.trim()) || !TimeUtil.isValidDateOrDateTime(state.dueAt.trim())) {
+            _uiState.update { it.copy(errorMessage = "日期格式应为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm") }
+            return
+        }
+        if (state.recurrence !in SUPPORTED_RECURRENCES) {
+            _uiState.update { it.copy(errorMessage = "不支持的重复规则") }
+            return
+        }
+        if (state.recurrenceUntil.isNotBlank() && !TimeUtil.isValidDate(state.recurrenceUntil.trim())) {
+            _uiState.update { it.copy(errorMessage = "重复截止日期应为 YYYY-MM-DD") }
+            return
+        }
 
+        val recurrenceInterval = state.recurrenceIntervalText.toIntOrNull()?.coerceAtLeast(1) ?: 1
         viewModelScope.launch {
             val now = TimeUtil.getCurrentIsoTime()
             val completedAt = when {
@@ -152,11 +200,18 @@ class TodoDetailViewModel @Inject constructor(
                 completedAt = completedAt,
                 isImportant = if (state.priority == "high") 1 else 0,
                 reminderMinutes = state.reminderMinutesText.toIntOrNull(),
+                recurrence = state.recurrence,
+                recurrenceInterval = if (state.recurrence == "none") 1 else recurrenceInterval,
+                recurrenceUntil = state.recurrenceUntil.trim().ifBlank { null },
                 updatedAt = now,
                 version = currentTodo.version + 1
             )
             todoRepository.saveTodoWithHistory(updated, "edit", "更新待办详情")
+            if (currentTodo.status != "completed" && updated.status == "completed") {
+                todoRepository.createNextRecurringTodoIfNeeded(updated)
+            }
             _uiState.update { it.copy(todo = updated) }
+            onSaved()
         }
     }
 
@@ -169,7 +224,7 @@ class TodoDetailViewModel @Inject constructor(
                 todoId = currentTodoId,
                 title = title,
                 isCompleted = 0,
-                sortOrder = 0,
+                sortOrder = _uiState.value.subtasks.size,
                 createdAt = now,
                 updatedAt = now,
                 deletedAt = null,
@@ -179,9 +234,31 @@ class TodoDetailViewModel @Inject constructor(
         }
     }
 
+    fun moveSubtaskOrder(subtaskId: String, moveUp: Boolean) {
+        val currentTodoId = todoId ?: return
+        viewModelScope.launch {
+            val list = _uiState.value.subtasks.toMutableList()
+            val index = list.indexOfFirst { it.id == subtaskId }
+            if (index == -1) return@launch
+
+            val newIndex = if (moveUp) index - 1 else index + 1
+            if (newIndex !in list.indices) return@launch
+
+            val item = list.removeAt(index)
+            list.add(newIndex, item)
+            todoRepository.reorderSubtasks(currentTodoId, list)
+        }
+    }
+
     fun toggleSubtaskStatus(subtaskId: String, isCompleted: Boolean) {
         viewModelScope.launch {
             todoRepository.updateSubtaskCompleted(subtaskId, !isCompleted, TimeUtil.getCurrentIsoTime())
+        }
+    }
+
+    fun deleteSubtask(subtaskId: String) {
+        viewModelScope.launch {
+            todoRepository.deleteSubtask(subtaskId)
         }
     }
 
@@ -190,5 +267,9 @@ class TodoDetailViewModel @Inject constructor(
         viewModelScope.launch {
             todoRepository.softDeleteTodo(currentTodoId)
         }
+    }
+
+    companion object {
+        private val SUPPORTED_RECURRENCES = setOf("none", "daily", "weekly", "monthly", "yearly")
     }
 }

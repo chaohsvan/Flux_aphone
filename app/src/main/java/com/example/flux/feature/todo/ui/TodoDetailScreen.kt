@@ -7,17 +7,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -65,18 +67,17 @@ fun TodoDetailScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = {
-                            viewModel.saveTodo()
-                            onNavigateUp()
-                        },
+                        onClick = { viewModel.saveTodo(onSaved = onNavigateUp) },
                         enabled = uiState.title.isNotBlank()
                     ) {
                         Icon(Icons.Default.Check, contentDescription = "保存")
                     }
-                    IconButton(onClick = {
-                        viewModel.deleteTodo()
-                        onNavigateUp()
-                    }) {
+                    IconButton(
+                        onClick = {
+                            viewModel.deleteTodo()
+                            onNavigateUp()
+                        }
+                    ) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "删除",
@@ -91,13 +92,17 @@ fun TodoDetailScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp)
-            ) {
+            return@Scaffold
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
                 TodoEditableFields(
                     uiState = uiState,
                     onTitleChange = viewModel::updateTitle,
@@ -107,47 +112,75 @@ fun TodoDetailScreen(
                     onStatusChange = viewModel::setStatus,
                     onStartAtChange = viewModel::updateStartAt,
                     onDueAtChange = viewModel::updateDueAt,
-                    onReminderChange = viewModel::updateReminderMinutes
+                    onReminderChange = viewModel::updateReminderMinutes,
+                    onRecurrenceChange = viewModel::setRecurrence,
+                    onRecurrenceIntervalChange = viewModel::updateRecurrenceInterval,
+                    onRecurrenceUntilChange = viewModel::updateRecurrenceUntil
                 )
+            }
 
-                Spacer(modifier = Modifier.height(16.dp))
+            uiState.errorMessage?.let { error ->
+                item {
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            item {
                 HorizontalDivider()
-                Spacer(modifier = Modifier.height(12.dp))
-
                 TodoHistorySection(history = uiState.history)
-
-                Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider()
-                Spacer(modifier = Modifier.height(12.dp))
-
                 Text("子任务", style = MaterialTheme.typography.titleMedium)
+            }
 
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(uiState.subtasks, key = { it.id }) { subtask ->
-                        val isCompleted = subtask.isCompleted == 1
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Checkbox(
-                                checked = isCompleted,
-                                onCheckedChange = { viewModel.toggleSubtaskStatus(subtask.id, isCompleted) }
-                            )
-                            Text(
-                                text = subtask.title,
-                                textDecoration = if (isCompleted) TextDecoration.LineThrough else null,
-                                color = if (isCompleted) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                        }
+            itemsIndexed(uiState.subtasks, key = { _, subtask -> subtask.id }) { index, subtask ->
+                val isCompleted = subtask.isCompleted == 1
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = isCompleted,
+                        onCheckedChange = { viewModel.toggleSubtaskStatus(subtask.id, isCompleted) }
+                    )
+                    Text(
+                        text = subtask.title,
+                        textDecoration = if (isCompleted) TextDecoration.LineThrough else null,
+                        color = if (isCompleted) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { viewModel.moveSubtaskOrder(subtask.id, moveUp = true) },
+                        enabled = index > 0
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移子任务")
+                    }
+                    IconButton(
+                        onClick = { viewModel.moveSubtaskOrder(subtask.id, moveUp = false) },
+                        enabled = index < uiState.subtasks.lastIndex
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移子任务")
+                    }
+                    IconButton(onClick = { viewModel.deleteSubtask(subtask.id) }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "删除子任务",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
+            }
 
+            item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = newSubtaskTitle,
@@ -184,7 +217,10 @@ private fun TodoEditableFields(
     onStatusChange: (String) -> Unit,
     onStartAtChange: (String) -> Unit,
     onDueAtChange: (String) -> Unit,
-    onReminderChange: (String) -> Unit
+    onReminderChange: (String) -> Unit,
+    onRecurrenceChange: (String) -> Unit,
+    onRecurrenceIntervalChange: (String) -> Unit,
+    onRecurrenceUntilChange: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
@@ -251,6 +287,39 @@ private fun TodoEditableFields(
             modifier = Modifier.fillMaxWidth()
         )
 
+        Text("重复规则", style = MaterialTheme.typography.titleMedium)
+        LazyRow {
+            items(listOf("none", "daily", "weekly", "monthly", "yearly")) { recurrence ->
+                FilterChip(
+                    selected = uiState.recurrence == recurrence,
+                    onClick = { onRecurrenceChange(recurrence) },
+                    label = { Text(recurrence.label()) },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+        }
+
+        if (uiState.recurrence != "none") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = uiState.recurrenceIntervalText,
+                    onValueChange = onRecurrenceIntervalChange,
+                    label = { Text("每几次") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = uiState.recurrenceUntil,
+                    onValueChange = onRecurrenceUntilChange,
+                    label = { Text("重复截止") },
+                    placeholder = { Text("YYYY-MM-DD") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             FilterChip(
                 selected = uiState.priority == "normal",
@@ -286,7 +355,7 @@ private fun TodoEditableFields(
 
 @Composable
 private fun TodoHistorySection(history: List<TodoHistoryEntity>) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 12.dp)) {
         Text("历史记录", style = MaterialTheme.typography.titleMedium)
         if (history.isEmpty()) {
             Text(
@@ -303,5 +372,15 @@ private fun TodoHistorySection(history: List<TodoHistoryEntity>) {
                 )
             }
         }
+    }
+}
+
+private fun String.label(): String {
+    return when (this) {
+        "daily" -> "每天"
+        "weekly" -> "每周"
+        "monthly" -> "每月"
+        "yearly" -> "每年"
+        else -> "不重复"
     }
 }

@@ -10,6 +10,8 @@ import com.example.flux.core.database.repository.TodoRepository
 import com.example.flux.core.domain.todo.ExportTodosUseCase
 import com.example.flux.core.domain.todo.ToggleTodoStatusUseCase
 import com.example.flux.core.domain.todo.TodoExportFormat
+import com.example.flux.core.domain.trash.ObserveTrashSummaryUseCase
+import com.example.flux.core.domain.trash.TrashSummary
 import com.example.flux.core.util.TimeUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.combine
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -63,11 +66,24 @@ data class TodoFilterState(
             customEndDate.isNotBlank()
 }
 
+data class TodoStats(
+    val total: Int = 0,
+    val today: Int = 0,
+    val overdue: Int = 0,
+    val inProgress: Int = 0,
+    val completed: Int = 0,
+    val highPriority: Int = 0
+) {
+    val completionPercent: Int
+        get() = if (total == 0) 0 else ((completed * 100.0) / total).toInt()
+}
+
 @HiltViewModel
 class TodoViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
     private val toggleTodoStatusUseCase: ToggleTodoStatusUseCase,
-    private val exportTodosUseCase: ExportTodosUseCase
+    private val exportTodosUseCase: ExportTodosUseCase,
+    observeTrashSummaryUseCase: ObserveTrashSummaryUseCase
 ) : ViewModel() {
 
     private val _filterState = MutableStateFlow(TodoFilterState())
@@ -80,8 +96,23 @@ class TodoViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    private val activeTodos: StateFlow<List<TodoEntity>> = todoRepository.getActiveTodos()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val stats: StateFlow<TodoStats> = activeTodos
+        .map { todos -> todos.toStats() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TodoStats()
+        )
+
     val todos: StateFlow<List<TodoEntity>> = combine(
-        todoRepository.getActiveTodos(),
+        activeTodos,
         _filterState
     ) { todos, filter ->
         todos.filter { todo -> todo.matches(filter) }
@@ -94,6 +125,13 @@ class TodoViewModel @Inject constructor(
 
     private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedIds = _selectedIds.asStateFlow()
+
+    val trashSummary: StateFlow<TrashSummary> = observeTrashSummaryUseCase()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TrashSummary()
+        )
 
     fun updateSearchQuery(query: String) {
         _filterState.update { it.copy(query = query) }
@@ -199,30 +237,20 @@ class TodoViewModel @Inject constructor(
     }
 
     fun moveTodoOrder(id: String, moveUp: Boolean) {
+        val index = todos.value.indexOfFirst { it.id == id }
+        val newIndex = if (moveUp) index - 1 else index + 1
+        moveTodoToIndex(id, newIndex)
+    }
+
+    fun moveTodoToIndex(id: String, targetIndex: Int) {
         viewModelScope.launch {
             val list = todos.value.toMutableList()
             val index = list.indexOfFirst { it.id == id }
-            if (index == -1) return@launch
+            if (index == -1 || targetIndex !in list.indices || index == targetIndex) return@launch
 
-            val newIndex = if (moveUp) index - 1 else index + 1
-            if (newIndex !in list.indices) return@launch
-
-            // Swap in memory
-            val temp = list[index]
-            list[index] = list[newIndex]
-            list[newIndex] = temp
-
-            // Re-assign sortOrders (smaller is higher)
-            list.forEachIndexed { i, todo ->
-                val newSortOrder = i
-                if (todo.sortOrder != newSortOrder) {
-                    todoRepository.saveTodoWithHistory(
-                        todo.copy(sortOrder = newSortOrder, updatedAt = TimeUtil.getCurrentIsoTime(), version = todo.version + 1),
-                        "reorder",
-                        "调整排序"
-                    )
-                }
-            }
+            val moved = list.removeAt(index)
+            list.add(targetIndex, moved)
+            todoRepository.reorderTodos(list)
         }
     }
 
@@ -232,7 +260,8 @@ class TodoViewModel @Inject constructor(
         }
     }
 
-    fun addTodo(title: String, description: String, priority: String, projectId: String?) {
+    fun addTodo(title: String, description: String, priority: String, projectId: String?, dueAt: String = "") {
+        if (!TimeUtil.isValidDateOrDateTime(dueAt.trim())) return
         viewModelScope.launch {
             val now = com.example.flux.core.util.TimeUtil.getCurrentIsoTime()
             val newTodo = TodoEntity(
@@ -242,10 +271,10 @@ class TodoViewModel @Inject constructor(
                 description = description,
                 status = "pending",
                 priority = priority,
-                dueAt = null,
+                dueAt = dueAt.ifBlank { null },
                 startAt = null,
                 completedAt = null,
-                sortOrder = 0,
+                sortOrder = activeTodos.value.size,
                 isImportant = if (priority == "high") 1 else 0,
                 reminderMinutes = null,
                 createdAt = now,
@@ -300,5 +329,20 @@ class TodoViewModel @Inject constructor(
                 target != null && afterStart && beforeEnd
             }
         }
+    }
+
+    private fun List<TodoEntity>.toStats(): TodoStats {
+        val today = TimeUtil.getCurrentDate()
+        return TodoStats(
+            total = size,
+            today = count { it.dueAt?.takeIf { due -> due.length >= 10 }?.take(10) == today },
+            overdue = count {
+                val dueDate = it.dueAt?.takeIf { due -> due.length >= 10 }?.take(10)
+                dueDate != null && dueDate < today && it.status != "completed"
+            },
+            inProgress = count { it.status == "in_progress" },
+            completed = count { it.status == "completed" },
+            highPriority = count { it.priority == "high" }
+        )
     }
 }

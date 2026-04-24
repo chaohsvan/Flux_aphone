@@ -1,5 +1,6 @@
-package com.example.flux.feature.diary.ui
+﻿package com.example.flux.feature.diary.ui
 
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.flux.core.database.entity.DiaryEntity
+import com.example.flux.core.domain.diary.DiaryExportFormat
 import com.example.flux.core.util.TimeUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,11 +61,11 @@ import com.example.flux.core.util.TimeUtil
 fun DiaryScreen(
     onNavigateToEditor: (String) -> Unit,
     onNavigateToTrash: () -> Unit,
+    onOpenGlobalSearch: () -> Unit,
     viewModel: DiaryViewModel = hiltViewModel()
 ) {
     val diaries by viewModel.diaries.collectAsState()
     val onThisDayDiaries by viewModel.onThisDayDiaries.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val isFavoriteFilter by viewModel.isFavoriteFilter.collectAsState()
     val moodFilter by viewModel.moodFilter.collectAsState()
@@ -72,16 +74,22 @@ fun DiaryScreen(
     val tagFilter by viewModel.tagFilter.collectAsState()
     val diaryTags by viewModel.diaryTags.collectAsState()
     val filterOptions by viewModel.filterOptions.collectAsState()
+    val trashSummary by viewModel.trashSummary.collectAsState()
     val hasFilters = isFavoriteFilter || moodFilter != null || monthFilter != null || yearFilter != null || tagFilter != null
 
     var showFilterSheet by remember { mutableStateOf(false) }
+    var showExportSheet by remember { mutableStateOf(false) }
+    var pendingExportFormat by remember { mutableStateOf<DiaryExportFormat?>(null) }
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/zip"),
+        contract = ActivityResultContracts.CreateDocument("*/*"),
         onResult = { uri ->
-            if (uri != null) {
-                viewModel.exportSelectedToUri(context, uri)
+            val format = pendingExportFormat
+            if (uri != null && format != null) {
+                viewModel.exportSelectedToUri(context, uri, format)
+                Toast.makeText(context, "\u5df2\u5bfc\u51fa\u65e5\u8bb0", Toast.LENGTH_SHORT).show()
             }
+            pendingExportFormat = null
         }
     )
 
@@ -89,22 +97,23 @@ fun DiaryScreen(
         topBar = {
             if (selectedIds.isNotEmpty()) {
                 TopAppBar(
-                    title = { Text("已选择 ${selectedIds.size} 篇") },
+                    title = { Text("\u5df2\u9009\u62e9 ${selectedIds.size} \u7bc7") },
                     navigationIcon = {
                         IconButton(onClick = { viewModel.clearSelection() }) {
-                            Icon(Icons.Default.Close, contentDescription = "取消选择")
+                            Icon(Icons.Default.Close, contentDescription = "鍙栨秷閫夋嫨")
                         }
                     },
                     actions = {
-                        IconButton(onClick = {
-                            exportLauncher.launch("FluxExport_${TimeUtil.getCurrentDate()}.zip")
-                        }) {
-                            Icon(Icons.Default.Share, contentDescription = "导出所选")
+                        IconButton(onClick = { showExportSheet = true }) {
+                            Icon(Icons.Default.Share, contentDescription = "\u5bfc\u51fa\u6240\u9009")
                         }
-                        IconButton(onClick = { viewModel.batchDelete() }) {
+                        IconButton(onClick = {
+                            viewModel.batchDelete()
+                            Toast.makeText(context, "\u5df2\u79fb\u5165\u56de\u6536\u7ad9", Toast.LENGTH_SHORT).show()
+                        }) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "删除所选",
+                                contentDescription = "\u5220\u9664\u6240\u9009",
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -114,43 +123,35 @@ fun DiaryScreen(
                     )
                 )
             } else {
-                Column {
-                    TopAppBar(
-                        title = { Text("日记") },
-                        actions = {
-                            IconButton(onClick = onNavigateToTrash) {
-                                Icon(Icons.Default.Delete, contentDescription = "回收站")
-                            }
+                TopAppBar(
+                    title = { Text("\u65e5\u8bb0") },
+                    actions = {
+                        IconButton(onClick = onOpenGlobalSearch) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "\u7edf\u4e00\u641c\u7d22"
+                            )
                         }
-                    )
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = viewModel::onSearchQueryChanged,
-                        placeholder = { Text("搜索日记...") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索") },
-                        trailingIcon = {
-                            TextButton(onClick = { showFilterSheet = true }) {
-                                Text(
-                                    text = "筛选",
-                                    color = if (hasFilters) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
+                        TextButton(onClick = { showFilterSheet = true }) {
+                            Text(
+                                text = "\u7b5b\u9009",
+                                color = if (hasFilters) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
                         }
-                    )
-                }
+                        TextButton(onClick = onNavigateToTrash) {
+                            Text(if (trashSummary.total > 0) "\u56de\u6536\u7ad9 ${trashSummary.total}" else "\u56de\u6536\u7ad9")
+                        }
+                    }
+                )
             }
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { onNavigateToEditor("new") }) {
-                Icon(Icons.Default.Add, contentDescription = "新建日记")
+                Icon(Icons.Default.Add, contentDescription = "\u65b0\u5efa\u65e5\u8bb0")
             }
         }
     ) { paddingValues ->
@@ -161,7 +162,13 @@ fun DiaryScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = if (searchQuery.isNotBlank() || hasFilters) "没有符合条件的日记" else "暂无日记，开始记录生活吧。")
+                Text(
+                    text = if (hasFilters) {
+                        "\u6ca1\u6709\u7b26\u5408\u6761\u4ef6\u7684\u65e5\u8bb0"
+                    } else {
+                        "\u6682\u65e0\u65e5\u8bb0\uff0c\u5f00\u59cb\u8bb0\u5f55\u751f\u6d3b\u5427\u3002"
+                    }
+                )
             }
         } else {
             LazyColumn(
@@ -169,7 +176,7 @@ fun DiaryScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                if (onThisDayDiaries.isNotEmpty() && searchQuery.isBlank()) {
+                if (onThisDayDiaries.isNotEmpty()) {
                     item {
                         OnThisDayBanner(
                             diaries = onThisDayDiaries,
@@ -219,6 +226,51 @@ fun DiaryScreen(
             onDismiss = { showFilterSheet = false }
         )
     }
+
+    if (showExportSheet) {
+        DiaryExportSheet(
+            onFormatSelected = { format ->
+                pendingExportFormat = format
+                exportLauncher.launch("FluxDiaries_${TimeUtil.getCurrentDate()}.${format.extension}")
+                showExportSheet = false
+            },
+            onDismiss = { showExportSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DiaryExportSheet(
+    onFormatSelected: (DiaryExportFormat) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text("\u5bfc\u51fa\u65e5\u8bb0", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(12.dp))
+            DiaryExportFormat.entries.forEach { format ->
+                TextButton(
+                    onClick = { onFormatSelected(format) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        when (format) {
+                            DiaryExportFormat.JSON -> "JSON"
+                            DiaryExportFormat.CSV -> "CSV"
+                            DiaryExportFormat.MARKDOWN -> "Markdown"
+                            DiaryExportFormat.ZIP -> "ZIP"
+                        }
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -252,25 +304,30 @@ private fun DiaryFilterSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("筛选日记", style = MaterialTheme.typography.titleLarge)
+                Text("\u7b5b\u9009\u65e5\u8bb0", style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = onClear) {
-                    Text("清除")
+                    Text("娓呴櫎")
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("收藏状态", style = MaterialTheme.typography.titleMedium)
+            Text("\u6536\u85cf\u72b6\u6001", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             FilterChip(
                 selected = isFavoriteFilter,
                 onClick = { onFavoriteChange(!isFavoriteFilter) },
-                label = { Text("仅显示已收藏") }
+                label = { Text("\u4ec5\u663e\u793a\u5df2\u6536\u85cf") }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("心情", style = MaterialTheme.typography.titleMedium)
+            Text("\u5fc3\u60c5", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            val moods = listOf("开心", "平静", "伤心", "愤怒")
+            val moods = listOf(
+                "\u5f00\u5fc3",
+                "\u5e73\u9759",
+                "\u4f24\u5fc3",
+                "\u6124\u6012"
+            )
             LazyRow {
                 items(moods) { mood ->
                     FilterChip(
@@ -285,10 +342,10 @@ private fun DiaryFilterSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("标签", style = MaterialTheme.typography.titleMedium)
+            Text("\u6807\u7b7e", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             if (filterOptions.tags.isEmpty()) {
-                Text("暂无标签", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("\u6682\u65e0\u6807\u7b7e", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 LazyRow {
                     items(filterOptions.tags) { tag ->
@@ -305,10 +362,10 @@ private fun DiaryFilterSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("月份", style = MaterialTheme.typography.titleMedium)
+            Text("\u6708\u4efd", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             if (filterOptions.months.isEmpty()) {
-                Text("暂无月份归档", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("\u6682\u65e0\u6708\u4efd\u5f52\u6863", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 LazyRow {
                     items(filterOptions.months) { month ->
@@ -325,10 +382,10 @@ private fun DiaryFilterSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("年份", style = MaterialTheme.typography.titleMedium)
+            Text("\u5e74\u4efd", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             if (filterOptions.years.isEmpty()) {
-                Text("暂无年份归档", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("\u6682\u65e0\u5e74\u4efd\u5f52\u6863", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 LazyRow {
                     items(filterOptions.years) { year ->
@@ -359,7 +416,7 @@ fun OnThisDayBanner(
             .padding(vertical = 8.dp)
     ) {
         Text(
-            text = "那年今日",
+            text = "\u90a3\u5e74\u4eca\u65e5",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -380,7 +437,7 @@ fun OnThisDayBanner(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = diary.entryDate.substring(0, 4) + "年",
+                            text = diary.entryDate.substring(0, 4) + "\u5e74",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )

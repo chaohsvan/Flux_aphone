@@ -2,6 +2,7 @@ package com.example.flux.core.database.repository
 
 import com.example.flux.core.database.dao.HolidayDao
 import com.example.flux.core.database.entity.CalendarHolidayOverrideEntity
+import com.example.flux.core.database.entity.CalendarStaticHolidayEntity
 import com.example.flux.core.util.TimeUtil
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -11,6 +12,10 @@ class HolidayRepository @Inject constructor(
 ) {
     fun getHolidayOverrides(): Flow<List<CalendarHolidayOverrideEntity>> {
         return holidayDao.getHolidayOverrides()
+    }
+
+    fun getStaticHolidays(): Flow<List<CalendarStaticHolidayEntity>> {
+        return holidayDao.getStaticHolidays()
     }
 
     suspend fun toggleHolidayOverride(date: String, defaultIsHoliday: Boolean) {

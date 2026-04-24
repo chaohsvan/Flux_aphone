@@ -8,6 +8,7 @@ import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.entity.TodoHistoryEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.entity.TodoSubtaskEntity
+import com.example.flux.core.util.RecurrenceUtil
 import com.example.flux.core.util.TimeUtil
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -77,6 +78,56 @@ class TodoRepository @Inject constructor(
         addHistory(todo.id, action, summary, payloadJson)
     }
 
+    suspend fun createNextRecurringTodoIfNeeded(completedTodo: TodoEntity) {
+        if (completedTodo.status != "completed" || completedTodo.recurrence == "none") return
+        val interval = completedTodo.recurrenceInterval.coerceAtLeast(1)
+        val nextDueAt = completedTodo.dueAt?.let {
+            RecurrenceUtil.nextValue(it, completedTodo.recurrence, interval)
+        }
+        val nextStartAt = completedTodo.startAt?.let {
+            RecurrenceUtil.nextValue(it, completedTodo.recurrence, interval)
+        }
+        val occurrenceDate = (nextDueAt ?: nextStartAt)?.take(10) ?: return
+        val until = completedTodo.recurrenceUntil
+        if (until != null && occurrenceDate > until) return
+
+        val parentId = completedTodo.parentTodoId ?: completedTodo.id
+        if (todoDao.getActiveRecurringChild(parentId, nextDueAt, nextStartAt) != null) return
+
+        val now = TimeUtil.getCurrentIsoTime()
+        val nextTodo = completedTodo.copy(
+            id = TimeUtil.generateUuid(),
+            status = "pending",
+            completedAt = null,
+            dueAt = nextDueAt,
+            startAt = nextStartAt,
+            parentTodoId = parentId,
+            createdAt = now,
+            updatedAt = now,
+            deletedAt = null,
+            version = 1
+        )
+        saveTodoWithHistory(nextTodo, "recurrence_create", "生成下一轮待办")
+        copySubtasksForRecurringTodo(completedTodo.id, nextTodo.id, now)
+        addHistory(completedTodo.id, "recurrence_next", "已生成下一轮：$occurrenceDate")
+    }
+
+    private suspend fun copySubtasksForRecurringTodo(sourceTodoId: String, targetTodoId: String, now: String) {
+        getSubtasksSnapshotForTodo(sourceTodoId).forEach { subtask ->
+            todoSubtaskDao.insertSubtask(
+                subtask.copy(
+                    id = TimeUtil.generateUuid(),
+                    todoId = targetTodoId,
+                    isCompleted = 0,
+                    createdAt = now,
+                    updatedAt = now,
+                    deletedAt = null,
+                    version = 1
+                )
+            )
+        }
+    }
+
     suspend fun addHistory(todoId: String, action: String, summary: String, payloadJson: String = "{}") {
         todoHistoryDao.insertHistory(
             TodoHistoryEntity(
@@ -107,6 +158,16 @@ class TodoRepository @Inject constructor(
         todoSubtaskDao.updateCompleted(id, if (isCompleted) 1 else 0, updatedAt)
     }
 
+    suspend fun reorderSubtasks(todoId: String, orderedSubtasks: List<TodoSubtaskEntity>) {
+        val now = TimeUtil.getCurrentIsoTime()
+        orderedSubtasks.forEachIndexed { index, subtask ->
+            if (subtask.sortOrder != index) {
+                todoSubtaskDao.updateSortOrder(subtask.id, index, now)
+            }
+        }
+        addHistory(todoId, "subtask_reorder", "调整子任务排序")
+    }
+
     suspend fun deleteSubtask(id: String) {
         todoSubtaskDao.softDeleteSubtask(id, TimeUtil.getCurrentIsoTime())
     }
@@ -126,6 +187,15 @@ class TodoRepository @Inject constructor(
         )
         val summary = if (priority == "high") "标记为高优先级" else "标记为普通优先级"
         ids.forEach { id -> addHistory(id, "priority", summary) }
+    }
+
+    suspend fun reorderTodos(orderedTodos: List<TodoEntity>) {
+        val now = TimeUtil.getCurrentIsoTime()
+        orderedTodos.forEachIndexed { index, todo ->
+            if (todo.sortOrder != index) {
+                todoDao.updateSortOrder(todo.id, index, now)
+            }
+        }
     }
 
     suspend fun softDeleteTodo(id: String) {

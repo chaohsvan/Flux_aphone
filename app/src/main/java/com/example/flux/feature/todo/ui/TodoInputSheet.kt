@@ -26,20 +26,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.TodoProjectEntity
+import com.example.flux.core.util.TimeUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoInputSheet(
     projects: List<TodoProjectEntity>,
+    initialDueAt: String = "",
     onDismiss: () -> Unit,
     onCreateProject: (String) -> Unit,
-    onSubmit: (String, String, String, String?) -> Unit
+    onSubmit: (String, String, String, String?, String) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var dueAt by remember { mutableStateOf(initialDueAt) }
     var isHighPriority by remember { mutableStateOf(false) }
     var selectedProjectId by remember { mutableStateOf<String?>(null) }
     var newProjectName by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -71,6 +75,29 @@ fun TodoInputSheet(
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = dueAt,
+                onValueChange = {
+                    dueAt = it
+                    errorMessage = null
+                },
+                label = { Text("截止日期") },
+                placeholder = { Text("YYYY-MM-DD 或 YYYY-MM-DD HH:mm") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage.orEmpty(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -135,7 +162,17 @@ fun TodoInputSheet(
             Button(
                 onClick = {
                     if (title.isNotBlank()) {
-                        onSubmit(title.trim(), description.trim(), if (isHighPriority) "high" else "normal", selectedProjectId)
+                        if (!TimeUtil.isValidDateOrDateTime(dueAt.trim())) {
+                            errorMessage = "截止日期格式应为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm"
+                        } else {
+                            onSubmit(
+                                title.trim(),
+                                description.trim(),
+                                if (isHighPriority) "high" else "normal",
+                                selectedProjectId,
+                                dueAt.trim()
+                            )
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

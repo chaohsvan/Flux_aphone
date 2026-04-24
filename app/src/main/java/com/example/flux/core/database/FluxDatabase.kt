@@ -2,8 +2,10 @@ package com.example.flux.core.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.example.flux.core.database.entity.AttachmentMetadataEntity
 import com.example.flux.core.database.entity.CalendarEventEntity
 import com.example.flux.core.database.entity.CalendarHolidayOverrideEntity
+import com.example.flux.core.database.entity.CalendarStaticHolidayEntity
 import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.DiaryFtsEntity
 import com.example.flux.core.database.entity.DiaryTagEntity
@@ -24,9 +26,11 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
         TodoSubtaskEntity::class,
         TodoHistoryEntity::class,
         CalendarEventEntity::class,
-        CalendarHolidayOverrideEntity::class
+        CalendarHolidayOverrideEntity::class,
+        CalendarStaticHolidayEntity::class,
+        AttachmentMetadataEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = true
 )
 abstract class FluxDatabase : RoomDatabase() {
@@ -37,4 +41,5 @@ abstract class FluxDatabase : RoomDatabase() {
     abstract fun todoHistoryDao(): com.example.flux.core.database.dao.TodoHistoryDao
     abstract fun eventDao(): com.example.flux.core.database.dao.EventDao
     abstract fun holidayDao(): com.example.flux.core.database.dao.HolidayDao
+    abstract fun attachmentMetadataDao(): com.example.flux.core.database.dao.AttachmentMetadataDao
 }
