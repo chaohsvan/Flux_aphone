@@ -8,10 +8,9 @@ import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.entity.TodoHistoryEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.entity.TodoSubtaskEntity
-import com.example.flux.core.util.RecurrenceUtil
 import com.example.flux.core.util.TimeUtil
-import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
 
 class TodoRepository @Inject constructor(
     private val todoDao: TodoDao,
@@ -19,28 +18,20 @@ class TodoRepository @Inject constructor(
     private val todoProjectDao: TodoProjectDao,
     private val todoHistoryDao: TodoHistoryDao
 ) {
-    fun getActiveTodos(): Flow<List<TodoEntity>> {
-        return todoDao.getActiveTodos()
-    }
+    fun getActiveTodos(): Flow<List<TodoEntity>> = todoDao.getActiveTodos()
 
-    fun getTodosByDate(date: String): Flow<List<TodoEntity>> {
-        return todoDao.getTodosByDate(date)
-    }
+    fun getTodosByDate(date: String): Flow<List<TodoEntity>> = todoDao.getTodosByDate(date)
 
-    fun getDeletedTodos(): Flow<List<TodoEntity>> {
-        return todoDao.getDeletedTodos()
-    }
+    fun getDeletedTodos(): Flow<List<TodoEntity>> = todoDao.getDeletedTodos()
 
-    fun getActiveProjects(): Flow<List<TodoProjectEntity>> {
-        return todoProjectDao.getActiveProjects()
-    }
+    fun getActiveProjects(): Flow<List<TodoProjectEntity>> = todoProjectDao.getActiveProjects()
 
-    fun getHistoryForTodo(todoId: String): Flow<List<TodoHistoryEntity>> {
-        return todoHistoryDao.getHistoryForTodo(todoId)
-    }
+    fun getHistoryForTodo(todoId: String): Flow<List<TodoHistoryEntity>> = todoHistoryDao.getHistoryForTodo(todoId)
 
-    suspend fun getTodoById(id: String): TodoEntity? {
-        return todoDao.getTodoById(id)
+    suspend fun getTodoById(id: String): TodoEntity? = todoDao.getTodoById(id)
+
+    suspend fun getActiveRecurringChild(parentTodoId: String, dueAt: String?, startAt: String?): TodoEntity? {
+        return todoDao.getActiveRecurringChild(parentTodoId, dueAt, startAt)
     }
 
     suspend fun saveProject(project: TodoProjectEntity) {
@@ -78,41 +69,7 @@ class TodoRepository @Inject constructor(
         addHistory(todo.id, action, summary, payloadJson)
     }
 
-    suspend fun createNextRecurringTodoIfNeeded(completedTodo: TodoEntity) {
-        if (completedTodo.status != "completed" || completedTodo.recurrence == "none") return
-        val interval = completedTodo.recurrenceInterval.coerceAtLeast(1)
-        val nextDueAt = completedTodo.dueAt?.let {
-            RecurrenceUtil.nextValue(it, completedTodo.recurrence, interval)
-        }
-        val nextStartAt = completedTodo.startAt?.let {
-            RecurrenceUtil.nextValue(it, completedTodo.recurrence, interval)
-        }
-        val occurrenceDate = (nextDueAt ?: nextStartAt)?.take(10) ?: return
-        val until = completedTodo.recurrenceUntil
-        if (until != null && occurrenceDate > until) return
-
-        val parentId = completedTodo.parentTodoId ?: completedTodo.id
-        if (todoDao.getActiveRecurringChild(parentId, nextDueAt, nextStartAt) != null) return
-
-        val now = TimeUtil.getCurrentIsoTime()
-        val nextTodo = completedTodo.copy(
-            id = TimeUtil.generateUuid(),
-            status = "pending",
-            completedAt = null,
-            dueAt = nextDueAt,
-            startAt = nextStartAt,
-            parentTodoId = parentId,
-            createdAt = now,
-            updatedAt = now,
-            deletedAt = null,
-            version = 1
-        )
-        saveTodoWithHistory(nextTodo, "recurrence_create", "生成下一轮待办")
-        copySubtasksForRecurringTodo(completedTodo.id, nextTodo.id, now)
-        addHistory(completedTodo.id, "recurrence_next", "已生成下一轮：$occurrenceDate")
-    }
-
-    private suspend fun copySubtasksForRecurringTodo(sourceTodoId: String, targetTodoId: String, now: String) {
+    suspend fun copySubtasksForRecurringTodo(sourceTodoId: String, targetTodoId: String, now: String) {
         getSubtasksSnapshotForTodo(sourceTodoId).forEach { subtask ->
             todoSubtaskDao.insertSubtask(
                 subtask.copy(
@@ -141,9 +98,7 @@ class TodoRepository @Inject constructor(
         )
     }
 
-    fun getSubtasksForTodo(todoId: String): Flow<List<TodoSubtaskEntity>> {
-        return todoSubtaskDao.getSubtasksForTodo(todoId)
-    }
+    fun getSubtasksForTodo(todoId: String): Flow<List<TodoSubtaskEntity>> = todoSubtaskDao.getSubtasksForTodo(todoId)
 
     suspend fun getSubtasksSnapshotForTodo(todoId: String): List<TodoSubtaskEntity> {
         return todoSubtaskDao.getSubtasksSnapshotForTodo(todoId)

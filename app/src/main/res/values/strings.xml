@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Flux</string>
+    <string name="markdown_open_link_failed">无法打开链接</string>
+    <string name="markdown_open_attachment_failed">无法打开附件</string>
+    <string name="markdown_attachment_audio">音频</string>
+    <string name="markdown_attachment_file">文件</string>
 </resources>
