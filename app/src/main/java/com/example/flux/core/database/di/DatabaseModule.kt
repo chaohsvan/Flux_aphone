@@ -24,10 +24,6 @@ object DatabaseModule {
         override fun migrate(db: SupportSQLiteDatabase) {
             createLegacySourceTables(db)
             ensureColumn(db, "todos", "is_my_day", "INTEGER NOT NULL DEFAULT 0")
-            ensureColumn(db, "todos", "recurrence", "TEXT NOT NULL DEFAULT 'none'")
-            ensureColumn(db, "todos", "recurrence_interval", "INTEGER NOT NULL DEFAULT 1")
-            ensureColumn(db, "todos", "recurrence_until", "TEXT")
-            ensureColumn(db, "todos", "parent_todo_id", "TEXT")
             FluxPrepackagedDatabaseNormalizer.normalize(db)
         }
     }
@@ -165,6 +161,60 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("PRAGMA foreign_keys=OFF")
+            db.execSQL("DROP INDEX IF EXISTS idx_todos_due")
+            db.execSQL("DROP INDEX IF EXISTS idx_todos_project")
+            db.execSQL("DROP INDEX IF EXISTS idx_todos_status")
+            db.execSQL(
+                """
+                CREATE TABLE todos_room (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    project_id TEXT,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    priority TEXT NOT NULL DEFAULT 'none',
+                    due_at TEXT,
+                    start_at TEXT,
+                    completed_at TEXT,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    is_my_day INTEGER NOT NULL DEFAULT 0,
+                    reminder_minutes INTEGER,
+                    is_important INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY(project_id) REFERENCES todo_projects(id)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT OR REPLACE INTO todos_room (
+                    id, project_id, title, description, status, priority, due_at, start_at,
+                    completed_at, sort_order, is_my_day, reminder_minutes, is_important,
+                    created_at, updated_at, deleted_at, version
+                )
+                SELECT
+                    id, project_id, title, description, status, priority, due_at, start_at,
+                    completed_at, sort_order, is_my_day, reminder_minutes, is_important,
+                    created_at, updated_at, deleted_at, version
+                FROM todos
+                WHERE id IS NOT NULL
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE todos")
+            db.execSQL("ALTER TABLE todos_room RENAME TO todos")
+            db.execSQL("CREATE INDEX idx_todos_due ON todos(due_at, status, deleted_at)")
+            db.execSQL("CREATE INDEX idx_todos_project ON todos(project_id, deleted_at)")
+            db.execSQL("CREATE INDEX idx_todos_status ON todos(status, deleted_at)")
+            db.execSQL("PRAGMA foreign_keys=ON")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideFluxDatabase(@ApplicationContext context: Context): FluxDatabase {
@@ -183,7 +233,17 @@ object DatabaseModule {
                     }
                 }
             )
-            .addMigrations(MIGRATION_1_8, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(
+                MIGRATION_1_8,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+                MIGRATION_9_10
+            )
             .build()
     }
 

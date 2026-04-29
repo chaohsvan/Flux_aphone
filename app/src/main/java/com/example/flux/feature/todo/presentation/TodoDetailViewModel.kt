@@ -7,7 +7,6 @@ import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.entity.TodoHistoryEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.entity.TodoSubtaskEntity
-import com.example.flux.core.domain.todo.CreateNextRecurringTodoUseCase
 import com.example.flux.core.util.TimeUtil
 import com.example.flux.feature.todo.domain.TodoFeatureGateway
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,9 +28,6 @@ data class TodoDetailUiState(
     val startAt: String = "",
     val dueAt: String = "",
     val reminderMinutesText: String = "",
-    val recurrence: String = "none",
-    val recurrenceIntervalText: String = "1",
-    val recurrenceUntil: String = "",
     val projects: List<TodoProjectEntity> = emptyList(),
     val history: List<TodoHistoryEntity> = emptyList(),
     val subtasks: List<TodoSubtaskEntity> = emptyList(),
@@ -43,7 +39,6 @@ data class TodoDetailUiState(
 @HiltViewModel
 class TodoDetailViewModel @Inject constructor(
     private val todoGateway: TodoFeatureGateway,
-    private val createNextRecurringTodoUseCase: CreateNextRecurringTodoUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -90,17 +85,6 @@ class TodoDetailViewModel @Inject constructor(
                         } else {
                             todo.reminderMinutes?.toString().orEmpty()
                         },
-                        recurrence = if (state.isFormInitialized) state.recurrence else todo.recurrence,
-                        recurrenceIntervalText = if (state.isFormInitialized) {
-                            state.recurrenceIntervalText
-                        } else {
-                            todo.recurrenceInterval.coerceAtLeast(1).toString()
-                        },
-                        recurrenceUntil = if (state.isFormInitialized) {
-                            state.recurrenceUntil
-                        } else {
-                            todo.recurrenceUntil.orEmpty()
-                        },
                         projects = projects,
                         history = history,
                         subtasks = subtasks,
@@ -136,25 +120,6 @@ class TodoDetailViewModel @Inject constructor(
         _uiState.update { it.copy(reminderMinutesText = value.filter(Char::isDigit).take(5), errorMessage = null) }
     }
 
-    fun setRecurrence(value: String) {
-        _uiState.update { state ->
-            state.copy(
-                recurrence = value,
-                recurrenceIntervalText = if (value == "none") "1" else state.recurrenceIntervalText,
-                recurrenceUntil = if (value == "none") "" else state.recurrenceUntil,
-                errorMessage = null
-            )
-        }
-    }
-
-    fun updateRecurrenceInterval(value: String) {
-        _uiState.update { it.copy(recurrenceIntervalText = value.filter(Char::isDigit).take(3), errorMessage = null) }
-    }
-
-    fun updateRecurrenceUntil(value: String) {
-        _uiState.update { it.copy(recurrenceUntil = TimeUtil.normalizeDateInput(value), errorMessage = null) }
-    }
-
     fun setPriority(priority: String) {
         _uiState.update { it.copy(priority = priority) }
     }
@@ -174,16 +139,6 @@ class TodoDetailViewModel @Inject constructor(
             _uiState.update { it.copy(errorMessage = "日期格式应为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm") }
             return
         }
-        if (state.recurrence !in SUPPORTED_RECURRENCES) {
-            _uiState.update { it.copy(errorMessage = "不支持的重复规则") }
-            return
-        }
-        if (state.recurrenceUntil.isNotBlank() && !TimeUtil.isValidDate(state.recurrenceUntil.trim())) {
-            _uiState.update { it.copy(errorMessage = "重复截止日期应为 YYYY-MM-DD") }
-            return
-        }
-
-        val recurrenceInterval = state.recurrenceIntervalText.toIntOrNull()?.coerceAtLeast(1) ?: 1
         viewModelScope.launch {
             val now = TimeUtil.getCurrentIsoTime()
             val completedAt = when {
@@ -202,16 +157,10 @@ class TodoDetailViewModel @Inject constructor(
                 completedAt = completedAt,
                 isImportant = if (state.priority == "high") 1 else 0,
                 reminderMinutes = state.reminderMinutesText.toIntOrNull(),
-                recurrence = state.recurrence,
-                recurrenceInterval = if (state.recurrence == "none") 1 else recurrenceInterval,
-                recurrenceUntil = state.recurrenceUntil.trim().ifBlank { null },
                 updatedAt = now,
                 version = currentTodo.version + 1
             )
             todoGateway.saveTodoWithHistory(updated, "edit", "更新待办详情")
-            if (currentTodo.status != "completed" && updated.status == "completed") {
-                createNextRecurringTodoUseCase(updated)
-            }
             _uiState.update { it.copy(todo = updated) }
             onSaved()
         }
@@ -269,9 +218,5 @@ class TodoDetailViewModel @Inject constructor(
         viewModelScope.launch {
             todoGateway.softDeleteTodo(currentTodoId)
         }
-    }
-
-    companion object {
-        private val SUPPORTED_RECURRENCES = setOf("none", "daily", "weekly", "monthly", "yearly")
     }
 }

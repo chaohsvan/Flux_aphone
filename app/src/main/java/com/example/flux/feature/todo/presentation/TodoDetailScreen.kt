@@ -106,10 +106,7 @@ fun TodoDetailScreen(
                     onStatusChange = viewModel::setStatus,
                     onStartAtChange = viewModel::updateStartAt,
                     onDueAtChange = viewModel::updateDueAt,
-                    onReminderChange = viewModel::updateReminderMinutes,
-                    onRecurrenceChange = viewModel::setRecurrence,
-                    onRecurrenceIntervalChange = viewModel::updateRecurrenceInterval,
-                    onRecurrenceUntilChange = viewModel::updateRecurrenceUntil
+                    onReminderChange = viewModel::updateReminderMinutes
                 )
             }
 

@@ -300,10 +300,6 @@ object FluxPrepackagedDatabaseNormalizer {
                 version INTEGER NOT NULL DEFAULT 1,
                 is_important INTEGER NOT NULL DEFAULT 0,
                 reminder_minutes INTEGER,
-                recurrence TEXT NOT NULL DEFAULT 'none',
-                recurrence_interval INTEGER NOT NULL DEFAULT 1,
-                recurrence_until TEXT,
-                parent_todo_id TEXT,
                 FOREIGN KEY(project_id) REFERENCES todo_projects(id)
             )
             """.trimIndent()
@@ -313,14 +309,12 @@ object FluxPrepackagedDatabaseNormalizer {
             INSERT OR REPLACE INTO todos_room (
                 id, project_id, title, description, status, priority, due_at, start_at,
                 completed_at, sort_order, is_my_day, created_at, updated_at, deleted_at,
-                version, is_important, reminder_minutes, recurrence, recurrence_interval,
-                recurrence_until, parent_todo_id
+                version, is_important, reminder_minutes
             )
             SELECT
                 id, project_id, title, description, status, priority, due_at, start_at,
                 completed_at, sort_order, is_my_day, created_at, updated_at, deleted_at,
-                version, is_important, reminder_minutes, recurrence, recurrence_interval,
-                recurrence_until, parent_todo_id
+                version, is_important, reminder_minutes
             FROM todos
             WHERE id IS NOT NULL
             """.trimIndent()

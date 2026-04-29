@@ -8,6 +8,7 @@ import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.domain.calendar.CalendarAggregatorUseCase
 import com.example.flux.core.domain.calendar.DailyAggregation
 import com.example.flux.core.domain.calendar.RestoreEventUseCase
+import com.example.flux.core.domain.calendar.occursOnCalendarDate
 import com.example.flux.core.domain.diary.RestoreDiaryUseCase
 import com.example.flux.core.domain.todo.RestoreTodoUseCase
 import com.example.flux.core.domain.trash.ObserveTrashSummaryUseCase
@@ -275,7 +276,7 @@ class CalendarViewModel @Inject constructor(
                         isHoliday = isHoliday,
                         holidayLabel = override?.label ?: if (defaultHoliday) "\u5468\u672b\u5047\u671f" else null,
                         deletedDiaries = deletedDiaries.filter { it.entryDate == date },
-            deletedTodos = deletedTodos.filter { TimeUtil.localDatePart(it.dueAt ?: it.createdAt) == date },
+            deletedTodos = deletedTodos.filter { TimeUtil.localDatePart(it.dueAt) == date },
                         deletedEvents = deletedEvents.filter { it.startAt.take(10) == date }
                     )
                 }
@@ -575,7 +576,7 @@ class CalendarViewModel @Inject constructor(
                 status = "pending",
                 priority = priority,
                 dueAt = dueAt.trim().ifBlank { null },
-                startAt = null,
+                startAt = now,
                 completedAt = null,
                 sortOrder = 0,
                 isImportant = if (priority == "high") 1 else 0,
@@ -636,15 +637,7 @@ class CalendarViewModel @Inject constructor(
     }
 
     private fun TodoEntity.occursOn(date: String): Boolean {
-        val raw = dueAt ?: TimeUtil.localDatePart(createdAt).orEmpty()
-        return RecurrenceUtil.occurrenceDates(
-            value = raw,
-            recurrence = recurrence,
-            interval = recurrenceInterval,
-            until = recurrenceUntil,
-            rangeStart = date,
-            rangeEnd = date
-        ).contains(date)
+        return occursOnCalendarDate(date)
     }
 
     private fun CalendarEventEntity.occursOn(date: String): Boolean {

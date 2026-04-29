@@ -42,16 +42,6 @@ interface TodoDao {
     @Query("SELECT * FROM todos WHERE id = :id LIMIT 1")
     suspend fun getTodoById(id: String): TodoEntity?
 
-    @Query("""
-        SELECT * FROM todos
-        WHERE deleted_at IS NULL
-          AND parent_todo_id = :parentTodoId
-          AND ((:dueAt IS NULL AND due_at IS NULL) OR due_at = :dueAt)
-          AND ((:startAt IS NULL AND start_at IS NULL) OR start_at = :startAt)
-        LIMIT 1
-    """)
-    suspend fun getActiveRecurringChild(parentTodoId: String, dueAt: String?, startAt: String?): TodoEntity?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTodo(todo: TodoEntity)
 

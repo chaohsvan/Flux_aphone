@@ -53,12 +53,3 @@ data class TodoStats(
         get() = if (total == 0) 0 else ((completed * 100.0) / total).toInt()
 }
 
-fun String.toTodoRecurrenceLabel(): String {
-    return when (this) {
-        "daily" -> "每天"
-        "weekly" -> "每周"
-        "monthly" -> "每月"
-        "yearly" -> "每年"
-        else -> "不重复"
-    }
-}

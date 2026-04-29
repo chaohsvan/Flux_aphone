@@ -35,10 +35,6 @@ class TodoRepository @Inject constructor(
 
     suspend fun getTodoById(id: String): TodoEntity? = todoDao.getTodoById(id)
 
-    suspend fun getActiveRecurringChild(parentTodoId: String, dueAt: String?, startAt: String?): TodoEntity? {
-        return todoDao.getActiveRecurringChild(parentTodoId, dueAt, startAt)
-    }
-
     suspend fun saveProject(project: TodoProjectEntity) {
         todoProjectDao.insertProject(project)
     }
@@ -80,22 +76,6 @@ class TodoRepository @Inject constructor(
         todoDao.insertTodo(todo)
         reminderScheduler.scheduleTodo(todo)
         addHistory(todo.id, action, summary, payloadJson)
-    }
-
-    suspend fun copySubtasksForRecurringTodo(sourceTodoId: String, targetTodoId: String, now: String) {
-        getSubtasksSnapshotForTodo(sourceTodoId).forEach { subtask ->
-            todoSubtaskDao.insertSubtask(
-                subtask.copy(
-                    id = TimeUtil.generateUuid(),
-                    todoId = targetTodoId,
-                    isCompleted = 0,
-                    createdAt = now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    version = 1
-                )
-            )
-        }
     }
 
     suspend fun addHistory(todoId: String, action: String, summary: String, payloadJson: String = "{}") {

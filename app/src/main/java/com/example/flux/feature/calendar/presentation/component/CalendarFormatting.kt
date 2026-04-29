@@ -58,7 +58,6 @@ fun TodoEntity.todoSubtitle(): String {
         startAt?.takeIf { it.isNotBlank() }?.let { add("开始 $it") }
         dueAt?.takeIf { it.isNotBlank() }?.let { add("截止 $it") }
         reminderMinutes?.let { add("提前 $it 分钟提醒") }
-        recurrence.takeIf { it != "none" }?.let { add(it.recurrenceLabel()) }
         if (status == "completed") add("已完成")
     }
     return parts.joinToString(" / ")

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -18,10 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.TodoHistoryEntity
-import com.example.flux.core.ui.DateField
 import com.example.flux.core.ui.DateTimeField
 import com.example.flux.core.util.TimeUtil
-import com.example.flux.feature.todo.domain.toTodoRecurrenceLabel
 import com.example.flux.feature.todo.presentation.TodoDetailUiState
 
 @Composable
@@ -34,10 +31,7 @@ fun TodoEditableFields(
     onStatusChange: (String) -> Unit,
     onStartAtChange: (String) -> Unit,
     onDueAtChange: (String) -> Unit,
-    onReminderChange: (String) -> Unit,
-    onRecurrenceChange: (String) -> Unit,
-    onRecurrenceIntervalChange: (String) -> Unit,
-    onRecurrenceUntilChange: (String) -> Unit
+    onReminderChange: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
@@ -98,36 +92,6 @@ fun TodoEditableFields(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Text("重复规则", style = MaterialTheme.typography.titleMedium)
-        LazyRow {
-            items(listOf("none", "daily", "weekly", "monthly", "yearly")) { recurrence ->
-                FilterChip(
-                    selected = uiState.recurrence == recurrence,
-                    onClick = { onRecurrenceChange(recurrence) },
-                    label = { Text(recurrence.toTodoRecurrenceLabel()) },
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-            }
-        }
-
-        if (uiState.recurrence != "none") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = uiState.recurrenceIntervalText,
-                    onValueChange = onRecurrenceIntervalChange,
-                    label = { Text("每几次") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                DateField(
-                    value = uiState.recurrenceUntil,
-                    onValueChange = onRecurrenceUntilChange,
-                    label = "重复截止",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             FilterChip(

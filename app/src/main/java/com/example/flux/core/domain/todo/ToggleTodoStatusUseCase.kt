@@ -5,8 +5,7 @@ import com.example.flux.core.util.TimeUtil
 import javax.inject.Inject
 
 class ToggleTodoStatusUseCase @Inject constructor(
-    private val todoRepository: TodoRepository,
-    private val createNextRecurringTodoUseCase: CreateNextRecurringTodoUseCase
+    private val todoRepository: TodoRepository
 ) {
     suspend operator fun invoke(id: String, currentStatus: String) {
         val todo = todoRepository.getTodoById(id) ?: return
@@ -23,6 +22,5 @@ class ToggleTodoStatusUseCase @Inject constructor(
             action = if (newStatus == "completed") "complete" else "reopen",
             summary = if (newStatus == "completed") "标记完成" else "重新打开"
         )
-        createNextRecurringTodoUseCase(updated)
     }
 }

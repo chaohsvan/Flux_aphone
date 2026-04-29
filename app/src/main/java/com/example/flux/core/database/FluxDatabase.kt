@@ -32,7 +32,7 @@ import com.example.flux.core.database.entity.TodoSubtaskEntity
         CalendarSubscriptionEntity::class,
         AttachmentMetadataEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class FluxDatabase : RoomDatabase() {

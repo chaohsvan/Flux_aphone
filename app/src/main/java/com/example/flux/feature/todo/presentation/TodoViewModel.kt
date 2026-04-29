@@ -293,7 +293,7 @@ class TodoViewModel @Inject constructor(
                 status = "pending",
                 priority = priority,
                 dueAt = dueAt.trim().ifBlank { null },
-                startAt = null,
+                startAt = now,
                 completedAt = null,
                 sortOrder = activeTodos.value.size,
                 isImportant = if (priority == "high") 1 else 0,
