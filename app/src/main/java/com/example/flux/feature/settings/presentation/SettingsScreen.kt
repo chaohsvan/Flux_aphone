@@ -204,9 +204,13 @@ fun SettingsScreen(
                             Toast.makeText(
                                 context,
                                 if (success) {
-                                    if (incrementalImport) "已增量导入备份" else "已导入备份，请重启应用"
+                                    if (incrementalImport) {
+                                        "\u5df2\u589e\u91cf\u5bfc\u5165\u5907\u4efd\uff0c\u8bf7\u91cd\u542f\u5e94\u7528\u540e\u67e5\u770b\u6700\u65b0\u6570\u636e"
+                                    } else {
+                                        "\u5df2\u5bfc\u5165\u5907\u4efd\uff0c\u8bf7\u91cd\u542f\u5e94\u7528\u540e\u67e5\u770b\u6700\u65b0\u6570\u636e"
+                                    }
                                 } else {
-                                    "备份导入失败"
+                                    "\u5907\u4efd\u5bfc\u5165\u5931\u8d25"
                                 },
                                 Toast.LENGTH_LONG
                             ).show()
