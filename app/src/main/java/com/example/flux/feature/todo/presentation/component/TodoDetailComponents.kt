@@ -18,6 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.TodoHistoryEntity
+import com.example.flux.core.ui.DateField
+import com.example.flux.core.ui.DateTimeField
+import com.example.flux.core.util.TimeUtil
 import com.example.flux.feature.todo.domain.toTodoRecurrenceLabel
 import com.example.flux.feature.todo.presentation.TodoDetailUiState
 
@@ -73,24 +76,18 @@ fun TodoEditableFields(
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = uiState.startAt,
-                onValueChange = onStartAtChange,
-                label = { Text("开始") },
-                placeholder = { Text("YYYY-MM-DD HH:mm") },
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-            OutlinedTextField(
-                value = uiState.dueAt,
-                onValueChange = onDueAtChange,
-                label = { Text("截止") },
-                placeholder = { Text("YYYY-MM-DD HH:mm") },
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        DateTimeField(
+            value = uiState.startAt,
+            onValueChange = onStartAtChange,
+            label = "开始",
+            modifier = Modifier.fillMaxWidth()
+        )
+        DateTimeField(
+            value = uiState.dueAt,
+            onValueChange = onDueAtChange,
+            label = "截止",
+            modifier = Modifier.fillMaxWidth()
+        )
 
         OutlinedTextField(
             value = uiState.reminderMinutesText,
@@ -123,12 +120,10 @@ fun TodoEditableFields(
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
-                OutlinedTextField(
+                DateField(
                     value = uiState.recurrenceUntil,
                     onValueChange = onRecurrenceUntilChange,
-                    label = { Text("重复截止") },
-                    placeholder = { Text("YYYY-MM-DD") },
-                    singleLine = true,
+                    label = "重复截止",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -183,7 +178,7 @@ fun TodoHistorySection(history: List<TodoHistoryEntity>) {
         } else {
             history.take(5).forEach { item ->
                 Text(
-                    text = "${item.createdAt.take(16)}  ${item.summary}",
+                    text = "${TimeUtil.formatTimestampForDisplay(item.createdAt)}  ${item.summary}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

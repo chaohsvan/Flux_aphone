@@ -21,8 +21,17 @@ interface EventDao {
     @Query("SELECT * FROM calendar_events WHERE id = :id LIMIT 1")
     suspend fun getEventById(id: String): CalendarEventEntity?
 
+    @Query("SELECT * FROM calendar_events WHERE subscription_id = :subscriptionId")
+    suspend fun getEventsBySubscription(subscriptionId: String): List<CalendarEventEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: CalendarEventEntity)
+
+    @Query("DELETE FROM calendar_events WHERE subscription_id = :subscriptionId AND external_uid = :externalUid")
+    suspend fun deleteExternalEvent(subscriptionId: String, externalUid: String)
+
+    @Query("DELETE FROM calendar_events WHERE subscription_id = :subscriptionId")
+    suspend fun deleteExternalEventsBySubscription(subscriptionId: String)
 
     @Query("UPDATE calendar_events SET deleted_at = :timestamp WHERE id = :id")
     suspend fun softDeleteEvent(id: String, timestamp: String)

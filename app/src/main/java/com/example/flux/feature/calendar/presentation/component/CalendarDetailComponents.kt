@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.CalendarEventEntity
 import com.example.flux.core.database.entity.TodoEntity
+import com.example.flux.core.util.TimeUtil
 import com.example.flux.feature.calendar.presentation.CalendarDateDetails
 import com.example.flux.feature.calendar.presentation.CalendarMonthHistory
 import com.example.flux.ui.theme.FluxDiaryYellow
@@ -50,7 +51,7 @@ fun CalendarDayTimelineView(
     onAddTodo: () -> Unit,
     onAddEvent: () -> Unit,
     onEditEvent: (CalendarEventEntity) -> Unit,
-    onDeleteEvent: (String) -> Unit,
+    onDeleteEvent: (String, String) -> Unit,
     onRestoreDiary: (String) -> Unit,
     onRestoreTodo: (String) -> Unit,
     onRestoreEvent: (String) -> Unit
@@ -131,7 +132,7 @@ fun CalendarDayTimelineView(
                     color = event.safeColor(),
                     onClick = { onEditEvent(event) },
                     trailing = {
-                        IconButton(onClick = { onDeleteEvent(event.id) }) {
+                        IconButton(onClick = { onDeleteEvent(event.id, selectedDate) }) {
                             Icon(Icons.Default.Delete, contentDescription = "删除事件", tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -165,7 +166,7 @@ fun CalendarDayTimelineView(
                     TimelineRow(
                         time = "删",
                         title = todo.title,
-                        subtitle = todo.dueAt ?: todo.createdAt,
+                        subtitle = todo.dueAt ?: TimeUtil.formatTimestampForDisplay(todo.createdAt),
                         color = Color.Gray,
                         textDecoration = TextDecoration.LineThrough,
                         trailing = {
@@ -226,7 +227,7 @@ fun CalendarDayTimelineView(
                         color = entry.event.safeColor(),
                         onClick = { onEditEvent(entry.event) },
                         trailing = {
-                            IconButton(onClick = { onDeleteEvent(entry.event.id) }) {
+                            IconButton(onClick = { onDeleteEvent(entry.event.id, selectedDate) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "删除事件", tint = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -353,7 +354,7 @@ fun CalendarDateDetailsSheet(
     onAddTodo: () -> Unit,
     onAddEvent: () -> Unit,
     onEditEvent: (CalendarEventEntity) -> Unit,
-    onDeleteEvent: (String) -> Unit,
+    onDeleteEvent: (String, String) -> Unit,
     onRestoreDiary: (String) -> Unit,
     onRestoreTodo: (String) -> Unit,
     onRestoreEvent: (String) -> Unit
@@ -392,40 +393,47 @@ fun CalendarDateDetailsSheet(
                 }
             }
 
-            Text("事件", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            details.events.forEach { event ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = event.label(),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onEditEvent(event) }
-                    )
-                    IconButton(onClick = { onDeleteEvent(event.id) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "删除事件", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
-
             if (details.diary != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("日记", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(text = "- ${details.diary.title.ifBlank { "无标题日记" }}", modifier = Modifier.padding(vertical = 4.dp))
+                CalendarDetailSectionTitle("日记", FluxDiaryYellow)
+                CalendarDetailItemRow(
+                    title = details.diary.title.ifBlank { "无标题日记" },
+                    subtitle = details.diary.contentMd.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty(),
+                    color = FluxDiaryYellow,
+                    onClick = { onWriteDiary(details.diary.id) }
+                )
             }
 
             if (details.todos.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("待办", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                CalendarDetailSectionTitle("待办", FluxTodoRed)
                 details.todos.forEach { todo ->
-                    Text(
-                        text = "- ${todo.title}",
+                    val todoColor = if (todo.status == "completed") Color.Gray else FluxTodoRed
+                    CalendarDetailItemRow(
+                        title = todo.title,
+                        subtitle = todo.todoSubtitle(),
+                        color = todoColor,
                         textDecoration = if (todo.status == "completed") TextDecoration.LineThrough else null,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+
+            if (details.events.isNotEmpty()) {
+                CalendarDetailSectionTitle("事件", TimelineFallbackColor)
+                details.events.forEach { event ->
+                    CalendarDetailItemRow(
+                        title = event.title,
+                        subtitle = event.eventSubtitle().ifBlank { event.label().removePrefix("- ") },
+                        color = event.safeColor(),
+                        onClick = { onEditEvent(event) },
+                        trailing = {
+                            IconButton(onClick = { onDeleteEvent(event.id, selectedDate) }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "删除事件",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     )
                 }
             }
@@ -450,6 +458,71 @@ fun CalendarDateDetailsSheet(
             }
         }
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun CalendarDetailSectionTitle(
+    title: String,
+    color: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(9.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun CalendarDetailItemRow(
+    title: String,
+    subtitle: String,
+    color: Color,
+    textDecoration: TextDecoration? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.10f))
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                textDecoration = textDecoration
+            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        trailing?.invoke()
     }
 }
 

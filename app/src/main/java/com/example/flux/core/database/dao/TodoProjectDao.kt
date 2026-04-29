@@ -20,4 +20,7 @@ interface TodoProjectDao {
 
     @Query("UPDATE todo_projects SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1 WHERE id = :id")
     suspend fun softDeleteProject(id: String, deletedAt: String)
+
+    @Query("UPDATE todo_projects SET name = :name, updated_at = :updatedAt, version = version + 1 WHERE id = :id AND deleted_at IS NULL")
+    suspend fun renameProject(id: String, name: String, updatedAt: String)
 }

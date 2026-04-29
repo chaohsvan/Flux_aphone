@@ -1,7 +1,8 @@
 package com.example.flux.feature.calendar.presentation
 
+import android.content.Context
+import android.content.Intent
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.flux.core.database.entity.CalendarEventEntity
+import com.example.flux.core.settings.WeatherAppBinding
 import com.example.flux.feature.calendar.presentation.component.CalendarControlStrip
 import com.example.flux.feature.calendar.presentation.component.CalendarDateDetailsSheet
 import com.example.flux.feature.calendar.presentation.component.CalendarDayTimelineView
@@ -64,14 +68,13 @@ fun CalendarScreen(
     var showEventInputSheet by remember { mutableStateOf(false) }
     var showTodoInputSheet by remember { mutableStateOf(false) }
     var showMonthHistorySheet by remember { mutableStateOf(false) }
-    var showLayerPanel by remember { mutableStateOf(false) }
     var editingEvent by remember { mutableStateOf<CalendarEventEntity?>(null) }
 
     val displayDate = uiState.selectedDate ?: uiState.currentMonth.dateString(1)
     val toolbarTitle = when (viewMode) {
         CalendarViewMode.MONTH -> uiState.currentMonth.label
         CalendarViewMode.DAY -> displayDate
-        CalendarViewMode.WEEK -> displayDate.weekRangeLabel()
+        CalendarViewMode.WEEK -> displayDate.weekRangeLabel(uiState.weekStartDay)
         CalendarViewMode.QUARTER -> uiState.currentMonth.quarterLabel()
     }
 
@@ -89,10 +92,24 @@ fun CalendarScreen(
                 title = { Text(toolbarTitle) },
                 actions = {
                     IconButton(onClick = onOpenGlobalSearch) {
-                        Icon(Icons.Default.Search, contentDescription = "统一搜索")
+                        Icon(Icons.Default.Search, contentDescription = "全局搜索")
                     }
-                    TextButton(onClick = onNavigateToTrash) {
-                        Text(if (uiState.trashSummary.total > 0) "回收站 ${uiState.trashSummary.total}" else "回收站")
+                    IconButton(
+                        onClick = {
+                            context.openWeatherApp(uiState.weatherAppBinding)
+                        }
+                    ) {
+                        Icon(Icons.Default.WbSunny, contentDescription = "打开天气")
+                    }
+                    IconButton(onClick = onNavigateToTrash) {
+                        Icon(
+                            Icons.Default.Recycling,
+                            contentDescription = if (uiState.trashSummary.total > 0) {
+                                "回收站 ${uiState.trashSummary.total}"
+                            } else {
+                                "回收站"
+                            }
+                        )
                     }
                 }
             )
@@ -112,31 +129,17 @@ fun CalendarScreen(
                 showTrash = uiState.showTrash,
                 holidayEditMode = uiState.holidayEditMode,
                 viewMode = viewMode,
-                isExpanded = showLayerPanel || uiState.holidayEditMode,
-                onToggleExpand = { showLayerPanel = !showLayerPanel },
                 onToggleHolidayEditMode = viewModel::toggleHolidayEditMode,
                 onShowMonthHistory = { showMonthHistorySheet = true }
             )
-
-            AnimatedVisibility(visible = showLayerPanel || uiState.holidayEditMode) {
-                CalendarLayerToggles(
-                    showDiaries = uiState.showDiaries,
-                    showTodos = uiState.showTodos,
-                    showEvents = uiState.showEvents,
-                    showHolidays = uiState.showHolidays,
-                    showTrash = uiState.showTrash,
-                    onToggleDiaries = viewModel::toggleShowDiaries,
-                    onToggleTodos = viewModel::toggleShowTodos,
-                    onToggleEvents = viewModel::toggleShowEvents,
-                    onToggleHolidays = viewModel::toggleShowHolidays,
-                    onToggleTrash = viewModel::toggleShowTrash
-                )
-            }
 
             CalendarModeChips(
                 viewMode = viewMode,
                 onViewModeChange = { mode ->
                     viewMode = mode
+                    if (mode == CalendarViewMode.MONTH) {
+                        viewModel.selectDate(null)
+                    }
                     if (mode == CalendarViewMode.DAY && uiState.selectedDate == null) {
                         viewModel.selectDate(uiState.currentMonth.dateString(1))
                     }
@@ -186,6 +189,7 @@ fun CalendarScreen(
                         showHolidays = uiState.showHolidays,
                         showTrash = uiState.showTrash,
                         holidayEditMode = uiState.holidayEditMode,
+                        weekStartDay = uiState.weekStartDay,
                         holidayOverrides = uiState.holidayOverrides,
                         onDateClick = viewModel::onDateClicked
                     )
@@ -228,6 +232,7 @@ fun CalendarScreen(
                         aggregatedData = uiState.aggregatedData,
                         showEvents = uiState.showEvents,
                         showHolidays = uiState.showHolidays,
+                        weekStartDay = uiState.weekStartDay,
                         holidayOverrides = uiState.holidayOverrides,
                         onDateClick = { date ->
                             viewModel.selectDate(date)
@@ -240,6 +245,7 @@ fun CalendarScreen(
                         aggregatedData = uiState.aggregatedData,
                         showEvents = uiState.showEvents,
                         showHolidays = uiState.showHolidays,
+                        weekStartDay = uiState.weekStartDay,
                         holidayOverrides = uiState.holidayOverrides,
                         onDateClick = { date ->
                             viewModel.selectDate(date)
@@ -248,6 +254,19 @@ fun CalendarScreen(
                     )
                 }
             }
+
+            CalendarLayerToggles(
+                showDiaries = uiState.showDiaries,
+                showTodos = uiState.showTodos,
+                showEvents = uiState.showEvents,
+                showHolidays = uiState.showHolidays,
+                showTrash = uiState.showTrash,
+                onToggleDiaries = viewModel::toggleShowDiaries,
+                onToggleTodos = viewModel::toggleShowTodos,
+                onToggleEvents = viewModel::toggleShowEvents,
+                onToggleHolidays = viewModel::toggleShowHolidays,
+                onToggleTrash = viewModel::toggleShowTrash
+            )
         }
     }
 
@@ -313,6 +332,8 @@ fun CalendarScreen(
             initialDueAt = uiState.selectedDate!!,
             onDismiss = { showTodoInputSheet = false },
             onCreateProject = viewModel::addProject,
+            onRenameProject = viewModel::renameProject,
+            onDeleteProject = viewModel::deleteProject,
             onSubmit = { title, desc, priority, projectId, dueAt ->
                 viewModel.addTodo(title, desc, priority, projectId, dueAt)
                 Toast.makeText(context, "已创建待办", Toast.LENGTH_SHORT).show()
@@ -328,5 +349,25 @@ fun CalendarScreen(
                 history = uiState.monthHistory
             )
         }
+    }
+}
+
+private fun Context.openWeatherApp(binding: WeatherAppBinding?) {
+    if (binding == null) {
+        Toast.makeText(this, "请先在设置中绑定天气 App", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    val explicitIntent = binding.activityName?.let { activityName ->
+        Intent().setClassName(binding.packageName, activityName)
+    }
+    val fallbackIntent = packageManager.getLaunchIntentForPackage(binding.packageName)
+    val launched = listOfNotNull(explicitIntent, fallbackIntent).any { intent ->
+        runCatching {
+            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.isSuccess
+    }
+    if (!launched) {
+        Toast.makeText(this, "无法打开天气应用，请重新绑定", Toast.LENGTH_SHORT).show()
     }
 }

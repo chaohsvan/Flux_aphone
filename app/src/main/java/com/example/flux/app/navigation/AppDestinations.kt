@@ -21,6 +21,8 @@ enum class AppDestinations(
 object AppRoutes {
     const val MAIN = "main"
     const val TRASH = "trash"
+    const val CALENDAR_SUBSCRIPTIONS = "calendar_subscriptions"
+    const val WEATHER_APP_BINDING = "weather_app_binding"
 
     const val EDITOR_ARG_DIARY_ID = "diaryId"
     const val EDITOR_ARG_ENTRY_DATE = "entryDate"

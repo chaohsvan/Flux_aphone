@@ -33,6 +33,7 @@ data class TodoUiState(
     val todos: List<TodoEntity> = emptyList(),
     val stats: TodoStats = TodoStats(),
     val projects: List<TodoProjectEntity> = emptyList(),
+    val subtaskProgress: Map<String, TodoSubtaskProgress> = emptyMap(),
     val selectedIds: Set<String> = emptySet(),
     val filterState: TodoFilterState = TodoFilterState(),
     val trashSummary: TrashSummary = TrashSummary()
@@ -44,10 +45,19 @@ data class TodoUiState(
             filterState.projectId != null
 }
 
+data class TodoSubtaskProgress(
+    val total: Int,
+    val completed: Int
+) {
+    val hasSubtasks: Boolean
+        get() = total > 0
+}
+
 private data class TodoContentState(
     val todos: List<TodoEntity> = emptyList(),
     val stats: TodoStats = TodoStats(),
-    val projects: List<TodoProjectEntity> = emptyList()
+    val projects: List<TodoProjectEntity> = emptyList(),
+    val subtaskProgress: Map<String, TodoSubtaskProgress> = emptyMap()
 )
 
 private data class TodoSelectionState(
@@ -67,6 +77,17 @@ class TodoViewModel @Inject constructor(
 
     val projects: StateFlow<List<TodoProjectEntity>> = todoGateway.getActiveProjects()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val subtaskProgress: StateFlow<Map<String, TodoSubtaskProgress>> = todoGateway.getSubtaskProgress()
+        .map { progressRows ->
+            progressRows.associate { row ->
+                row.todoId to TodoSubtaskProgress(
+                    total = row.totalCount,
+                    completed = row.completedCount
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val activeTodos: StateFlow<List<TodoEntity>> = todoGateway.getActiveTodos()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -90,9 +111,15 @@ class TodoViewModel @Inject constructor(
     private val contentState: StateFlow<TodoContentState> = combine(
         todos,
         stats,
-        projects
-    ) { todos, stats, projects ->
-        TodoContentState(todos = todos, stats = stats, projects = projects)
+        projects,
+        subtaskProgress
+    ) { todos, stats, projects, subtaskProgress ->
+        TodoContentState(
+            todos = todos,
+            stats = stats,
+            projects = projects,
+            subtaskProgress = subtaskProgress
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TodoContentState())
 
     private val selectionState: StateFlow<TodoSelectionState> = combine(
@@ -115,6 +142,7 @@ class TodoViewModel @Inject constructor(
             todos = contentState.todos,
             stats = contentState.stats,
             projects = contentState.projects,
+            subtaskProgress = contentState.subtaskProgress,
             selectedIds = selectionState.selectedIds,
             filterState = selectionState.filterState,
             trashSummary = selectionState.trashSummary
@@ -142,11 +170,11 @@ class TodoViewModel @Inject constructor(
     }
 
     fun updateCustomStartDate(date: String) {
-        _filterState.update { it.copy(customStartDate = date, time = TodoTimeFilter.CUSTOM) }
+        _filterState.update { it.copy(customStartDate = TimeUtil.normalizeDateInput(date), time = TodoTimeFilter.CUSTOM) }
     }
 
     fun updateCustomEndDate(date: String) {
-        _filterState.update { it.copy(customEndDate = date, time = TodoTimeFilter.CUSTOM) }
+        _filterState.update { it.copy(customEndDate = TimeUtil.normalizeDateInput(date), time = TodoTimeFilter.CUSTOM) }
     }
 
     fun clearFilters() {
@@ -190,6 +218,14 @@ class TodoViewModel @Inject constructor(
             _filterState.update { state ->
                 if (state.projectId == projectId) state.copy(projectId = null) else state
             }
+        }
+    }
+
+    fun renameProject(projectId: String, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            todoGateway.renameProject(projectId, trimmed)
         }
     }
 
@@ -256,7 +292,7 @@ class TodoViewModel @Inject constructor(
                 description = description,
                 status = "pending",
                 priority = priority,
-                dueAt = dueAt.ifBlank { null },
+                dueAt = dueAt.trim().ifBlank { null },
                 startAt = null,
                 completedAt = null,
                 sortOrder = activeTodos.value.size,

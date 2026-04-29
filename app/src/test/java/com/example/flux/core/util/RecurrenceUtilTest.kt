@@ -54,6 +54,28 @@ class RecurrenceUtilTest {
     }
 
     @Test
+    fun trimRuleBeforeDate_keepsOnlyEarlierOccurrences() {
+        val rule = RecurrenceUtil.trimRuleBeforeDate(
+            value = "2026-04-24T09:30:00",
+            recurrence = "daily;interval=2;until=2026-05-10",
+            date = "2026-04-30"
+        )
+
+        assertEquals("daily;interval=2;until=2026-04-28", rule)
+    }
+
+    @Test
+    fun trimRuleBeforeDate_returnsNullWhenDeletingFirstOccurrence() {
+        val rule = RecurrenceUtil.trimRuleBeforeDate(
+            value = "2026-04-24T09:30:00",
+            recurrence = "weekly",
+            date = "2026-04-24"
+        )
+
+        assertNull(rule)
+    }
+
+    @Test
     fun label_formatsFriendlyText() {
         val label = RecurrenceUtil.label("weekly;interval=2;until=2026-12-31")
 

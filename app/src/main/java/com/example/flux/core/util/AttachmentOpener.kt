@@ -27,7 +27,7 @@ object AttachmentOpener {
         }
 
         return try {
-            context.startActivity(Intent.createChooser(intent, file.name))
+            context.startActivity(intent)
             true
         } catch (_: ActivityNotFoundException) {
             false

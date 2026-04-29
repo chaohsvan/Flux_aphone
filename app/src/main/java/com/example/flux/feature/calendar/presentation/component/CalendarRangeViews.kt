@@ -38,6 +38,7 @@ fun CalendarQuarterView(
     aggregatedData: Map<String, DailyAggregation>,
     showEvents: Boolean,
     showHolidays: Boolean,
+    weekStartDay: Int,
     holidayOverrides: Map<String, HolidayOverrideState>,
     onDateClick: (String) -> Unit
 ) {
@@ -58,7 +59,7 @@ fun CalendarQuarterView(
                 Text(month.label, style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    listOf("日", "一", "二", "三", "四", "五", "六").forEach { day ->
+                    calendarWeekdayLabels(weekStartDay).forEach { day ->
                         Text(
                             text = day,
                             modifier = Modifier.weight(1f),
@@ -69,7 +70,7 @@ fun CalendarQuarterView(
                     }
                 }
                 val daysInMonth = month.lengthOfMonth()
-                val startOffset = month.firstDayOffset()
+                val startOffset = month.firstDayOffset(weekStartDay)
                 val cellCount = kotlin.math.ceil((startOffset + daysInMonth) / 7.0).toInt() * 7
                 (0 until cellCount step 7).forEach { rowStart ->
                     Row(
@@ -185,10 +186,11 @@ fun CalendarWeekView(
     aggregatedData: Map<String, DailyAggregation>,
     showEvents: Boolean,
     showHolidays: Boolean,
+    weekStartDay: Int,
     holidayOverrides: Map<String, HolidayOverrideState>,
     onDateClick: (String) -> Unit
 ) {
-    val weekDates = remember(selectedDate) { selectedDate.weekDates() }
+    val weekDates = remember(selectedDate, weekStartDay) { selectedDate.weekDates(weekStartDay) }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()

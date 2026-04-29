@@ -119,6 +119,25 @@ object RecurrenceUtil {
         return result.distinct()
     }
 
+    fun trimRuleBeforeDate(value: String?, recurrence: String?, date: String): String? {
+        val spec = parseSpec(recurrence) ?: return null
+        val startDate = value?.take(10)?.takeIf { TimeUtil.isValidDate(it) } ?: return recurrence
+        if (!TimeUtil.isValidDate(date)) return recurrence
+
+        val previousOccurrence = occurrenceDates(
+            value = value,
+            recurrence = recurrence,
+            rangeStart = startDate,
+            rangeEnd = date
+        ).lastOrNull { it < date } ?: return null
+
+        return buildSpec(
+            rule = spec.rule,
+            interval = spec.interval,
+            until = previousOccurrence
+        )
+    }
+
     private fun parse(value: String): ParsedDate? {
         return runCatching {
             when {

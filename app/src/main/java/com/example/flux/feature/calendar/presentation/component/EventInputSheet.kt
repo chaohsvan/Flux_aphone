@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.CalendarEventEntity
+import com.example.flux.core.ui.DateField
+import com.example.flux.core.ui.TimeField
 import com.example.flux.core.util.RecurrenceUtil
 import com.example.flux.core.util.TimeUtil
 
@@ -73,7 +75,7 @@ fun EventInputSheet(
     var recurrenceRule by remember { mutableStateOf(initialRecurrence?.rule ?: "none") }
     var recurrenceIntervalText by remember { mutableStateOf(initialRecurrence?.interval?.toString() ?: "1") }
     var recurrenceUntil by remember { mutableStateOf(initialRecurrence?.until.orEmpty()) }
-    val isTimeValid = allDay || (startTimeText.isValidClockTime() && endTimeText.isValidClockTime())
+    val isTimeValid = allDay || (TimeUtil.isValidClockTime(startTimeText) && TimeUtil.isValidClockTime(endTimeText))
     val isRecurrenceUntilValid = recurrenceUntil.isBlank() || TimeUtil.isValidDate(recurrenceUntil)
     val canSave = title.isNotBlank() && isTimeValid && isRecurrenceUntilValid
 
@@ -95,23 +97,19 @@ fun EventInputSheet(
             OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("位置") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                TimeField(
                     value = startTimeText,
                     onValueChange = { startTimeText = it },
-                    label = { Text("开始") },
-                    placeholder = { Text("HH:mm") },
+                    label = "开始",
                     modifier = Modifier.weight(1f),
                     enabled = !allDay,
-                    singleLine = true
                 )
-                OutlinedTextField(
+                TimeField(
                     value = endTimeText,
                     onValueChange = { endTimeText = it },
-                    label = { Text("结束") },
-                    placeholder = { Text("HH:mm") },
+                    label = "结束",
                     modifier = Modifier.weight(1f),
                     enabled = !allDay,
-                    singleLine = true
                 )
             }
 
@@ -155,13 +153,11 @@ fun EventInputSheet(
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
-                    OutlinedTextField(
+                    DateField(
                         value = recurrenceUntil,
-                        onValueChange = { recurrenceUntil = it.take(10) },
-                        label = { Text("重复截止") },
-                        placeholder = { Text("YYYY-MM-DD") },
+                        onValueChange = { recurrenceUntil = it },
+                        label = "重复截止",
                         modifier = Modifier.weight(1f),
-                        singleLine = true
                     )
                 }
                 if (!isRecurrenceUntilValid) {
@@ -227,8 +223,4 @@ fun EventInputSheet(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
-}
-
-private fun String.isValidClockTime(): Boolean {
-    return Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(this)
 }

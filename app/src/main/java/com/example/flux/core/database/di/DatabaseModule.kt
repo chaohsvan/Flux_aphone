@@ -135,6 +135,36 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS calendar_subscription (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    ics_url TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    last_sync_time TEXT,
+                    etag TEXT,
+                    last_modified_header TEXT,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("ALTER TABLE calendar_events ADD COLUMN subscription_id TEXT")
+            db.execSQL("ALTER TABLE calendar_events ADD COLUMN external_uid TEXT")
+            db.execSQL("ALTER TABLE calendar_events ADD COLUMN external_hash TEXT")
+            db.execSQL(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_events_subscription
+                ON calendar_events(subscription_id, external_uid)
+                """.trimIndent()
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideFluxDatabase(@ApplicationContext context: Context): FluxDatabase {
@@ -149,10 +179,11 @@ object DatabaseModule {
                 object : RoomDatabase.PrepackagedDatabaseCallback() {
                     override fun onOpenPrepackagedDatabase(db: SupportSQLiteDatabase) {
                         FluxPrepackagedDatabaseNormalizer.normalize(db)
+                        FluxPrepackagedDatabaseNormalizer.purgeSeededUserData(db)
                     }
                 }
             )
-            .addMigrations(MIGRATION_1_8, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_1_8, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .build()
     }
 
@@ -194,6 +225,11 @@ object DatabaseModule {
     @Provides
     fun provideAttachmentMetadataDao(database: FluxDatabase): com.example.flux.core.database.dao.AttachmentMetadataDao {
         return database.attachmentMetadataDao()
+    }
+
+    @Provides
+    fun provideCalendarSubscriptionDao(database: FluxDatabase): com.example.flux.core.database.dao.CalendarSubscriptionDao {
+        return database.calendarSubscriptionDao()
     }
 
     private fun createLegacySourceTables(db: SupportSQLiteDatabase) {

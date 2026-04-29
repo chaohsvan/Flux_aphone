@@ -14,10 +14,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -47,7 +52,6 @@ import com.example.flux.feature.todo.presentation.component.TodoExportSheet
 import com.example.flux.feature.todo.presentation.component.TodoFilterSheet
 import com.example.flux.feature.todo.presentation.component.TodoInputSheet
 import com.example.flux.feature.todo.presentation.component.TodoItemRow
-import com.example.flux.feature.todo.presentation.component.TodoStatsRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +66,7 @@ fun TodoScreen(
     var showAddSheet by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
     var showExportSheet by remember { mutableStateOf(false) }
+    var showSelectionMenu by remember { mutableStateOf(false) }
     var pendingExportFormat by remember { mutableStateOf<TodoExportFormat?>(null) }
     val listState = rememberLazyListState()
     var draggingTodoId by remember { mutableStateOf<String?>(null) }
@@ -89,11 +94,6 @@ fun TodoScreen(
                         }
                     },
                     actions = {
-                        TextButton(onClick = { viewModel.selectAllVisible() }) { Text("全选") }
-                        TextButton(onClick = { viewModel.invertVisibleSelection() }) { Text("反选") }
-                        IconButton(onClick = { showExportSheet = true }) {
-                            Icon(Icons.Default.Share, contentDescription = "导出所选")
-                        }
                         if (uiState.selectedIds.size == 1) {
                             val selectedId = uiState.selectedIds.first()
                             IconButton(onClick = { viewModel.moveTodoOrder(selectedId, moveUp = true) }) {
@@ -103,19 +103,52 @@ fun TodoScreen(
                                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移")
                             }
                         }
-                        TextButton(onClick = {
-                            viewModel.batchMarkHighPriority()
-                            Toast.makeText(context, "已设为高优先级", Toast.LENGTH_SHORT).show()
-                        }) { Text("高优") }
-                        TextButton(onClick = {
-                            viewModel.batchMarkNormalPriority()
-                            Toast.makeText(context, "已设为普通优先级", Toast.LENGTH_SHORT).show()
-                        }) { Text("普通") }
+                        IconButton(onClick = { showExportSheet = true }) {
+                            Icon(Icons.Default.Share, contentDescription = "导出所选")
+                        }
                         IconButton(onClick = {
                             viewModel.batchDelete()
                             Toast.makeText(context, "已移入回收站", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "删除所选", tint = MaterialTheme.colorScheme.error)
+                        }
+                        IconButton(onClick = { showSelectionMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
+                        }
+                        DropdownMenu(
+                            expanded = showSelectionMenu,
+                            onDismissRequest = { showSelectionMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("全选当前列表") },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    viewModel.selectAllVisible()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("反选当前列表") },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    viewModel.invertVisibleSelection()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("标为高优先级") },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    viewModel.batchMarkHighPriority()
+                                    Toast.makeText(context, "已设为高优先级", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("标为普通优先级") },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    viewModel.batchMarkNormalPriority()
+                                    Toast.makeText(context, "已设为普通优先级", Toast.LENGTH_SHORT).show()
+                                }
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -127,21 +160,23 @@ fun TodoScreen(
                     title = { Text("待办事项") },
                     actions = {
                         IconButton(onClick = onOpenGlobalSearch) {
-                            Icon(Icons.Default.Search, contentDescription = "统一搜索")
+                            Icon(Icons.Default.Search, contentDescription = "全局搜索")
                         }
-                        TextButton(onClick = { showFilterSheet = true }) {
-                            Text(
-                                text = "筛选",
-                                color = if (uiState.hasStructuredFilters) {
+                        IconButton(onClick = { showFilterSheet = true }) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = "筛选",
+                                tint = if (uiState.hasStructuredFilters) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 }
                             )
                         }
-                        TextButton(onClick = onNavigateToTrash) {
-                            Text(
-                                if (uiState.trashSummary.total > 0) {
+                        IconButton(onClick = onNavigateToTrash) {
+                            Icon(
+                                Icons.Default.Recycling,
+                                contentDescription = if (uiState.trashSummary.total > 0) {
                                     "回收站 ${uiState.trashSummary.total}"
                                 } else {
                                     "回收站"
@@ -180,9 +215,6 @@ fun TodoScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                item(key = "todo_stats") {
-                    TodoStatsRow(stats = uiState.stats)
-                }
                 itemsIndexed(
                     items = uiState.todos,
                     key = { _, todo -> todo.id }
@@ -190,6 +222,7 @@ fun TodoScreen(
                     TodoItemRow(
                         todo = todo,
                         projectName = uiState.projects.firstOrNull { it.id == todo.projectId }?.name,
+                        subtaskProgress = uiState.subtaskProgress[todo.id],
                         isSelected = uiState.selectedIds.contains(todo.id),
                         onToggle = { id, currentStatus -> viewModel.toggleStatus(id, currentStatus) },
                         onClick = {
@@ -235,13 +268,13 @@ fun TodoScreen(
                                                 ?: return@detectDragGesturesAfterLongPress
                                             val draggedCenter = currentItem.offset + currentItem.size / 2f + draggedOffset
                                             val targetItem = listState.layoutInfo.visibleItemsInfo
-                                                .filter { it.key != "todo_stats" && it.key != todo.id }
+                                                .filter { it.key != todo.id }
                                                 .firstOrNull { item ->
                                                     draggedCenter >= item.offset &&
                                                         draggedCenter <= item.offset + item.size
                                                 }
                                                 ?: return@detectDragGesturesAfterLongPress
-                                            val targetIndex = targetItem.index - 1
+                                            val targetIndex = targetItem.index
                                             if (targetIndex in uiState.todos.indices) {
                                                 viewModel.moveTodoToIndex(todo.id, targetIndex)
                                                 draggedOffset = 0f
@@ -264,8 +297,6 @@ fun TodoScreen(
             onPriorityChange = viewModel::setPriorityFilter,
             onTimeChange = viewModel::setTimeFilter,
             onProjectChange = viewModel::setProjectFilter,
-            onCreateProject = viewModel::addProject,
-            onDeleteProject = viewModel::deleteProject,
             onCustomStartDateChange = viewModel::updateCustomStartDate,
             onCustomEndDateChange = viewModel::updateCustomEndDate,
             onClear = viewModel::clearFilters,
@@ -289,6 +320,8 @@ fun TodoScreen(
             projects = uiState.projects,
             onDismiss = { showAddSheet = false },
             onCreateProject = viewModel::addProject,
+            onRenameProject = viewModel::renameProject,
+            onDeleteProject = viewModel::deleteProject,
             onSubmit = { title, desc, priority, projectId, dueAt ->
                 viewModel.addTodo(title, desc, priority, projectId, dueAt)
                 Toast.makeText(context, "已创建待办", Toast.LENGTH_SHORT).show()

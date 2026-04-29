@@ -98,11 +98,11 @@ class DiaryEditorViewModel @Inject constructor(
     }
 
     fun updateEntryDate(newDate: String) {
-        _uiState.update { it.copy(entryDate = newDate, errorMessage = null) }
+        _uiState.update { it.copy(entryDate = TimeUtil.normalizeDateInput(newDate), errorMessage = null) }
     }
 
     fun updateEntryTime(newTime: String) {
-        _uiState.update { it.copy(entryTime = newTime.ifBlank { null }) }
+        _uiState.update { it.copy(entryTime = TimeUtil.normalizeClockInput(newTime).ifBlank { null }, errorMessage = null) }
     }
 
     fun updateMood(newMood: String?) {
@@ -199,6 +199,11 @@ class DiaryEditorViewModel @Inject constructor(
             _uiState.update { it.copy(errorMessage = "日期格式应为 YYYY-MM-DD") }
             return
         }
+        val entryTime = currentState.entryTime
+        if (!entryTime.isNullOrBlank() && !TimeUtil.isValidClockTime(entryTime)) {
+            _uiState.update { it.copy(errorMessage = "时间格式应为 HH:mm") }
+            return
+        }
 
         viewModelScope.launch {
             val existing = diaryGateway.getActiveDiaryByDate(entryDate)
@@ -216,7 +221,7 @@ class DiaryEditorViewModel @Inject constructor(
             val entity = DiaryEntity(
                 id = currentState.id ?: TimeUtil.generateUuid(),
                 entryDate = entryDate,
-                entryTime = currentState.entryTime,
+                entryTime = entryTime,
                 title = currentState.title.ifBlank { defaultTitle },
                 contentMd = currentState.contentMd,
                 mood = currentState.mood,

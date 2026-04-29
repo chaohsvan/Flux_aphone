@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.TodoEntity
+import com.example.flux.feature.todo.presentation.TodoSubtaskProgress
 import com.example.flux.ui.theme.FluxTodoRed
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -26,6 +28,7 @@ import com.example.flux.ui.theme.FluxTodoRed
 fun TodoItemRow(
     todo: TodoEntity,
     projectName: String? = null,
+    subtaskProgress: TodoSubtaskProgress? = null,
     isSelected: Boolean = false,
     onToggle: (String, String) -> Unit,
     onClick: () -> Unit,
@@ -79,8 +82,34 @@ fun TodoItemRow(
                     )
                 }
                 TodoMetaLine(todo, projectName)
+                if (subtaskProgress?.hasSubtasks == true) {
+                    TodoSubtaskProgressLine(subtaskProgress)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun TodoSubtaskProgressLine(progress: TodoSubtaskProgress) {
+    val ratio = progress.completed.toFloat() / progress.total.coerceAtLeast(1)
+    Column(modifier = Modifier.padding(top = 6.dp)) {
+        LinearProgressIndicator(
+            progress = { ratio },
+            modifier = Modifier.fillMaxWidth(),
+            color = if (progress.completed == progress.total) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                FluxTodoRed
+            },
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        Text(
+            text = "子任务 ${progress.completed}/${progress.total}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 

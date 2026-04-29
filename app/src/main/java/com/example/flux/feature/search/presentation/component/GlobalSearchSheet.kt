@@ -32,14 +32,9 @@ fun GlobalSearchSheet(
     onResultClick: (GlobalSearchResult) -> Unit
 ) {
     UnifiedSearchSheet(
-        title = "统一入口",
+        title = "全局搜索",
         query = query,
         placeholder = "搜索日记、待办、事件或附件",
-        infoText = when {
-            query.isBlank() -> "输入关键词后，这里会统一列出四类结果"
-            results.isEmpty() -> "没有找到匹配内容"
-            else -> "找到 ${results.size} 条结果"
-        },
         onQueryChange = onQueryChange,
         onDismiss = onDismiss
     ) {
@@ -49,13 +44,7 @@ fun GlobalSearchSheet(
         ) {
             ScopeChips(selected = scope, onSelected = onScopeChange)
             when {
-                query.isBlank() -> {
-                    Text(
-                        text = "试试输入标题、日期、地点、路径或文件名",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                query.isBlank() -> Unit
 
                 results.isEmpty() -> {
                     Text(

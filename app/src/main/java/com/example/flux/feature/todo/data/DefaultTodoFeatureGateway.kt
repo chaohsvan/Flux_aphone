@@ -2,6 +2,7 @@ package com.example.flux.feature.todo.data
 
 import android.content.Context
 import android.net.Uri
+import com.example.flux.core.database.dao.TodoSubtaskProgressEntity
 import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.entity.TodoHistoryEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
@@ -22,6 +23,8 @@ class DefaultTodoFeatureGateway @Inject constructor(
 
     override fun getActiveProjects(): Flow<List<TodoProjectEntity>> = todoRepository.getActiveProjects()
 
+    override fun getSubtaskProgress(): Flow<List<TodoSubtaskProgressEntity>> = todoRepository.getSubtaskProgress()
+
     override fun getHistoryForTodo(todoId: String): Flow<List<TodoHistoryEntity>> = todoRepository.getHistoryForTodo(todoId)
 
     override fun getSubtasksForTodo(todoId: String): Flow<List<TodoSubtaskEntity>> = todoRepository.getSubtasksForTodo(todoId)
@@ -29,6 +32,10 @@ class DefaultTodoFeatureGateway @Inject constructor(
     override suspend fun getTodoById(id: String): TodoEntity? = todoRepository.getTodoById(id)
 
     override suspend fun createProject(name: String): TodoProjectEntity = todoRepository.createProject(name)
+
+    override suspend fun renameProject(projectId: String, name: String) {
+        todoRepository.renameProject(projectId, name)
+    }
 
     override suspend fun softDeleteProject(projectId: String) {
         todoRepository.softDeleteProject(projectId)

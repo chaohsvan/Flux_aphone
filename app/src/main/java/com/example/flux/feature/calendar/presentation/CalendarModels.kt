@@ -6,6 +6,7 @@ import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.domain.calendar.DailyAggregation
 import com.example.flux.core.domain.trash.TrashSummary
+import com.example.flux.core.settings.WeatherAppBinding
 import java.util.Calendar
 import java.util.Locale
 
@@ -47,13 +48,15 @@ data class CalendarMonth(
         }.getActualMaximum(Calendar.DAY_OF_MONTH)
     }
 
-    fun firstDayOffset(): Int {
-        return Calendar.getInstance().apply {
+    fun firstDayOffset(weekStartDay: Int = Calendar.SUNDAY): Int {
+        val normalizedWeekStart = if (weekStartDay == Calendar.MONDAY) Calendar.MONDAY else Calendar.SUNDAY
+        val dayOfWeek = Calendar.getInstance().apply {
             clear()
             set(Calendar.YEAR, year)
             set(Calendar.MONTH, month - 1)
             set(Calendar.DAY_OF_MONTH, 1)
-        }.get(Calendar.DAY_OF_WEEK) - 1
+        }.get(Calendar.DAY_OF_WEEK)
+        return (dayOfWeek - normalizedWeekStart + DAYS_IN_WEEK) % DAYS_IN_WEEK
     }
 
     fun dateString(day: Int): String {
@@ -71,6 +74,8 @@ data class CalendarMonth(
     }
 
     companion object {
+        private const val DAYS_IN_WEEK = 7
+
         fun current(): CalendarMonth {
             val calendar = Calendar.getInstance()
             return CalendarMonth(
@@ -124,6 +129,7 @@ data class CalendarContentState(
     val currentMonth: CalendarMonth = CalendarMonth.current(),
     val projects: List<TodoProjectEntity> = emptyList(),
     val holidayOverrides: Map<String, HolidayOverrideState> = emptyMap(),
+    val weatherAppBinding: WeatherAppBinding? = null,
     val selectedDateDetails: CalendarDateDetails? = null,
     val monthHistory: CalendarMonthHistory = CalendarMonthHistory(),
     val trashSummary: TrashSummary = TrashSummary()
@@ -136,6 +142,7 @@ data class CalendarDisplayState(
     val showHolidays: Boolean = true,
     val showTrash: Boolean = false,
     val holidayEditMode: Boolean = false,
+    val weekStartDay: Int = Calendar.SUNDAY,
     val selectedDate: String? = null
 )
 
@@ -148,19 +155,22 @@ data class CalendarUiState(
     val selectedDateDetails: CalendarDateDetails? = null,
     val monthHistory: CalendarMonthHistory = CalendarMonthHistory(),
     val trashSummary: TrashSummary = TrashSummary(),
+    val weatherAppBinding: WeatherAppBinding? = null,
     val showDiaries: Boolean = false,
     val showTodos: Boolean = false,
     val showEvents: Boolean = true,
     val showHolidays: Boolean = true,
     val showTrash: Boolean = false,
-    val holidayEditMode: Boolean = false
+    val holidayEditMode: Boolean = false,
+    val weekStartDay: Int = Calendar.SUNDAY
 )
 
 internal data class CalendarPrimaryContentState(
     val aggregatedData: Map<String, DailyAggregation> = emptyMap(),
     val currentMonth: CalendarMonth = CalendarMonth.current(),
     val projects: List<TodoProjectEntity> = emptyList(),
-    val holidayOverrides: Map<String, HolidayOverrideState> = emptyMap()
+    val holidayOverrides: Map<String, HolidayOverrideState> = emptyMap(),
+    val weatherAppBinding: WeatherAppBinding? = null
 )
 
 enum class CalendarViewMode {

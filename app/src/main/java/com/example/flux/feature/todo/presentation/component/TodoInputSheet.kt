@@ -1,22 +1,24 @@
 package com.example.flux.feature.todo.presentation.component
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.TodoProjectEntity
+import com.example.flux.core.ui.DateTimeField
 import com.example.flux.core.util.TimeUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,6 +38,8 @@ fun TodoInputSheet(
     initialDueAt: String = "",
     onDismiss: () -> Unit,
     onCreateProject: (String) -> Unit,
+    onRenameProject: (String, String) -> Unit,
+    onDeleteProject: (String) -> Unit,
     onSubmit: (String, String, String, String?, String) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
@@ -42,7 +47,10 @@ fun TodoInputSheet(
     var dueAt by remember { mutableStateOf(initialDueAt) }
     var isHighPriority by remember { mutableStateOf(false) }
     var selectedProjectId by remember { mutableStateOf<String?>(null) }
+    var showTagManagement by remember { mutableStateOf(false) }
     var newProjectName by remember { mutableStateOf("") }
+    var editingProjectId by remember { mutableStateOf<String?>(null) }
+    var editingProjectName by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -78,16 +86,11 @@ fun TodoInputSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedTextField(
+            DateTimeField(
                 value = dueAt,
-                onValueChange = {
-                    dueAt = it
-                    errorMessage = null
-                },
-                label = { Text("截止日期") },
-                placeholder = { Text("YYYY-MM-DD 或 YYYY-MM-DD HH:mm") },
+                onValueChange = { dueAt = it; errorMessage = null },
+                label = "截止日期",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
             )
 
             errorMessage?.let {
@@ -101,7 +104,16 @@ fun TodoInputSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("项目标签", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("项目标签", style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = { showTagManagement = !showTagManagement }) {
+                    Text(if (showTagManagement) "完成" else "管理标签")
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow {
                 item {
@@ -122,28 +134,109 @@ fun TodoInputSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = newProjectName,
-                    onValueChange = { newProjectName = it },
-                    label = { Text("新项目标签") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        val name = newProjectName.trim()
-                        if (name.isNotBlank()) {
-                            onCreateProject(name)
-                            newProjectName = ""
-                        }
-                    },
-                    enabled = newProjectName.isNotBlank()
+            if (showTagManagement) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("添加")
+                    OutlinedTextField(
+                        value = newProjectName,
+                        onValueChange = { newProjectName = it },
+                        label = { Text("新标签名称") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            val name = newProjectName.trim()
+                            if (name.isNotBlank()) {
+                                onCreateProject(name)
+                                newProjectName = ""
+                            }
+                        },
+                        enabled = newProjectName.isNotBlank()
+                    ) {
+                        Text("添加")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                projects.forEach { project ->
+                    if (editingProjectId == project.id) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = editingProjectName,
+                                onValueChange = { editingProjectName = it },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = {
+                                    val name = editingProjectName.trim()
+                                    if (name.isNotBlank()) {
+                                        onRenameProject(project.id, name)
+                                        editingProjectId = null
+                                        editingProjectName = ""
+                                    }
+                                },
+                                enabled = editingProjectName.isNotBlank()
+                            ) {
+                                Text("保存")
+                            }
+                            TextButton(
+                                onClick = {
+                                    editingProjectId = null
+                                    editingProjectName = ""
+                                }
+                            ) {
+                                Text("取消")
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = project.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(
+                                    onClick = {
+                                        editingProjectId = project.id
+                                        editingProjectName = project.name
+                                    }
+                                ) {
+                                    Text("重命名")
+                                }
+                                TextButton(
+                                    onClick = {
+                                        if (selectedProjectId == project.id) {
+                                            selectedProjectId = null
+                                        }
+                                        onDeleteProject(project.id)
+                                    }
+                                ) {
+                                    Text("删除", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

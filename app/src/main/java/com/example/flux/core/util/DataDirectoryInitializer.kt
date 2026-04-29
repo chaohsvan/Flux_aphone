@@ -1,7 +1,6 @@
 package com.example.flux.core.util
 
 import android.content.Context
-import android.content.res.AssetManager
 import android.database.sqlite.SQLiteDatabase
 import java.io.File
 
@@ -11,7 +10,6 @@ object DataDirectoryInitializer {
         migrateLegacyDatabase(context)
         migrateLegacyAttachments(context)
         seedStaticHolidaysFromAsset(context)
-        copyAssetAttachments(context.assets, "attachments", DataPaths.attachmentsDir(context))
     }
 
     private fun migrateLegacyDatabase(context: Context) {
@@ -127,29 +125,4 @@ object DataDirectoryInitializer {
         }
     }
 
-    private fun copyAssetAttachments(assetManager: AssetManager, assetPath: String, targetDir: File) {
-        val children = assetManager.list(assetPath).orEmpty()
-        if (children.isEmpty()) {
-            copyAssetFileIfMissing(assetManager, assetPath, targetDir)
-            return
-        }
-
-        children.forEach { child ->
-            val childAssetPath = "$assetPath/$child"
-            copyAssetAttachments(assetManager, childAssetPath, File(targetDir, child))
-        }
-    }
-
-    private fun copyAssetFileIfMissing(assetManager: AssetManager, assetPath: String, targetFile: File) {
-        if (targetFile.exists()) return
-
-        runCatching {
-            targetFile.parentFile?.mkdirs()
-            assetManager.open(assetPath).use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-    }
 }

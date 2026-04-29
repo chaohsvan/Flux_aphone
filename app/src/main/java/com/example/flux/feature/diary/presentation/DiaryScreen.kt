@@ -10,6 +10,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -98,21 +100,23 @@ fun DiaryScreen(
                     title = { Text("日记") },
                     actions = {
                         IconButton(onClick = onOpenGlobalSearch) {
-                            Icon(Icons.Default.Search, contentDescription = "统一搜索")
+                            Icon(Icons.Default.Search, contentDescription = "全局搜索")
                         }
-                        TextButton(onClick = { showFilterSheet = true }) {
-                            Text(
-                                text = "筛选",
-                                color = if (uiState.hasFilters) {
+                        IconButton(onClick = { showFilterSheet = true }) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = "筛选",
+                                tint = if (uiState.hasFilters) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 }
                             )
                         }
-                        TextButton(onClick = onNavigateToTrash) {
-                            Text(
-                                if (uiState.trashSummary.total > 0) {
+                        IconButton(onClick = onNavigateToTrash) {
+                            Icon(
+                                Icons.Default.Recycling,
+                                contentDescription = if (uiState.trashSummary.total > 0) {
                                     "回收站 ${uiState.trashSummary.total}"
                                 } else {
                                     "回收站"

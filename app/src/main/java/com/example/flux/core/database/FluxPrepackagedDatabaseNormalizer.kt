@@ -4,8 +4,42 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object FluxPrepackagedDatabaseNormalizer {
+    private val USER_DATA_TABLES = listOf(
+        "attachment_metadata",
+        "calendar_events",
+        "calendar_holidays",
+        "calendar_subscription",
+        "diaries",
+        "diary_search_index",
+        "diary_tag_links",
+        "diary_tags",
+        "sync_outbox",
+        "todo_history",
+        "todo_projects",
+        "todo_subtasks",
+        "todos"
+    )
+
     fun normalize(db: SupportSQLiteDatabase) {
         normalizeWith { sql -> db.execSQL(sql) }
+    }
+
+    fun purgeSeededUserData(db: SupportSQLiteDatabase) {
+        db.execSQL("PRAGMA foreign_keys=OFF")
+        db.execSQL("BEGIN TRANSACTION")
+        try {
+            USER_DATA_TABLES.forEach { table ->
+                if (db.tableExists(table)) {
+                    db.execSQL("DELETE FROM $table")
+                }
+            }
+            db.execSQL("COMMIT")
+        } catch (throwable: Throwable) {
+            db.execSQL("ROLLBACK")
+            throw throwable
+        } finally {
+            db.execSQL("PRAGMA foreign_keys=ON")
+        }
     }
 
     fun normalize(db: SQLiteDatabase) {
@@ -14,6 +48,12 @@ object FluxPrepackagedDatabaseNormalizer {
 
     fun rebuildDiarySearchIndex(db: SupportSQLiteDatabase) {
         rebuildDiarySearchIndex { sql -> db.execSQL(sql) }
+    }
+
+    private fun SupportSQLiteDatabase.tableExists(table: String): Boolean {
+        return query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(table)).use { cursor ->
+            cursor.moveToFirst()
+        }
     }
 
     private fun normalizeWith(exec: (String) -> Unit) {

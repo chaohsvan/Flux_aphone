@@ -12,7 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.flux.core.util.TimeUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +67,7 @@ fun TrashScreen(
                 actions = {
                     IconButton(onClick = onNavigateToAttachmentManager) {
                         Icon(
-                            Icons.Default.Warning,
+                            Icons.Default.AttachFile,
                             contentDescription = "\u9644\u4ef6\u7ba1\u7406",
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -126,7 +127,7 @@ fun TrashScreen(
                 ) { todo ->
                     TrashEntryRow(
                         title = todo.title,
-                        subtitle = todo.dueAt ?: todo.createdAt,
+                        subtitle = todo.dueAt ?: TimeUtil.formatTimestampForDisplay(todo.createdAt),
                         onRestore = {
                             viewModel.restoreTodo(todo.id)
                             Toast.makeText(context, "\u5df2\u6062\u590d\u5f85\u529e", Toast.LENGTH_SHORT).show()

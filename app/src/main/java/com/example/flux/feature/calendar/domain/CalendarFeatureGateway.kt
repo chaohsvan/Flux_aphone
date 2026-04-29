@@ -21,8 +21,11 @@ interface CalendarFeatureGateway {
     fun getDeletedEvents(): Flow<List<CalendarEventEntity>>
     suspend fun saveEvent(event: CalendarEventEntity)
     suspend fun softDeleteEvent(id: String)
+    suspend fun softDeleteEventFromDate(id: String, date: String)
     suspend fun toggleHolidayOverride(date: String, defaultIsHoliday: Boolean)
     suspend fun createProject(name: String): TodoProjectEntity
+    suspend fun renameProject(projectId: String, name: String)
+    suspend fun softDeleteProject(projectId: String)
     suspend fun saveTodoWithHistory(
         todo: TodoEntity,
         action: String,

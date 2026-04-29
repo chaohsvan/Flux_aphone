@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,66 +45,72 @@ fun CalendarMonthView(
     showHolidays: Boolean,
     showTrash: Boolean,
     holidayEditMode: Boolean,
+    weekStartDay: Int,
     holidayOverrides: Map<String, HolidayOverrideState>,
     onDateClick: (String, Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
-        listOf("日", "一", "二", "三", "四", "五", "六").forEach { day ->
-            Text(
-                text = day,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            calendarWeekdayLabels(weekStartDay).forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
-    }
 
-    HorizontalDivider()
+        HorizontalDivider()
 
-    val daysInMonth = currentMonth.lengthOfMonth()
-    val startOffset = currentMonth.firstDayOffset()
-    val rows = kotlin.math.ceil((startOffset + daysInMonth) / 7.0).toInt()
-    val cellCount = rows * 7
+        val daysInMonth = currentMonth.lengthOfMonth()
+        val startOffset = currentMonth.firstDayOffset(weekStartDay)
+        val rows = kotlin.math.ceil((startOffset + daysInMonth) / 7.0).toInt()
+        val cellCount = rows * 7
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(7),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        items((0 until cellCount).toList()) { index ->
-            if (index < startOffset || index >= startOffset + daysInMonth) {
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(0.7f)
-                        .padding(0.5.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f))
-                )
-            } else {
-                val day = index - startOffset + 1
-                val dateString = currentMonth.dateString(day)
-                val aggregation = aggregatedData[dateString]
-                val defaultHoliday = currentMonth.isWeekend(day)
-                val holidayOverride = holidayOverrides[dateString]
-                val baseHoliday = holidayOverride?.defaultIsHoliday ?: defaultHoliday
-                val isHoliday = holidayOverride?.isHoliday ?: baseHoliday
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            items((0 until cellCount).toList()) { index ->
+                if (index < startOffset || index >= startOffset + daysInMonth) {
+                    Box(
+                        modifier = Modifier
+                            .aspectRatio(0.82f)
+                            .padding(0.5.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f))
+                    )
+                } else {
+                    val day = index - startOffset + 1
+                    val dateString = currentMonth.dateString(day)
+                    val aggregation = aggregatedData[dateString]
+                    val defaultHoliday = currentMonth.isWeekend(day)
+                    val holidayOverride = holidayOverrides[dateString]
+                    val baseHoliday = holidayOverride?.defaultIsHoliday ?: defaultHoliday
+                    val isHoliday = holidayOverride?.isHoliday ?: baseHoliday
 
-                CalendarGridCell(
-                    day = day,
-                    aggregation = aggregation,
-                    showDiaries = showDiaries,
-                    showTodos = showTodos,
-                    showEvents = showEvents,
-                    showHolidays = showHolidays,
-                    showTrash = showTrash,
-                    isHoliday = isHoliday,
-                    isHolidayOverride = holidayOverride?.isUserOverride == true,
-                    holidayEditMode = holidayEditMode,
-                    onClick = { onDateClick(dateString, baseHoliday) }
-                )
+                    CalendarGridCell(
+                        day = day,
+                        aggregation = aggregation,
+                        showDiaries = showDiaries,
+                        showTodos = showTodos,
+                        showEvents = showEvents,
+                        showHolidays = showHolidays,
+                        showTrash = showTrash,
+                        isHoliday = isHoliday,
+                        isHolidayOverride = holidayOverride?.isUserOverride == true,
+                        holidayEditMode = holidayEditMode,
+                        onClick = { onDateClick(dateString, baseHoliday) }
+                    )
+                }
             }
         }
     }
@@ -127,7 +134,7 @@ fun CalendarGridCell(
     val renderManualWorkday = showHolidays && isHolidayOverride && !isHoliday
     Box(
         modifier = Modifier
-            .aspectRatio(0.7f)
+            .aspectRatio(0.82f)
             .padding(0.5.dp)
             .background(
                 when {
@@ -149,14 +156,14 @@ fun CalendarGridCell(
 
             if (renderHoliday) {
                 Text(
-                    text = if (isHolidayOverride) "休" else "假",
+                    text = "\u5047\u671f",
                     style = MaterialTheme.typography.labelSmall,
                     color = FluxHolidayOrange,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             } else if (renderManualWorkday) {
                 Text(
-                    text = "班",
+                    text = "\u5de5\u4f5c",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -166,41 +173,38 @@ fun CalendarGridCell(
             Spacer(modifier = Modifier.weight(1f))
 
             if (aggregation != null) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.Bottom
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (showDiaries && aggregation.hasDiary) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(FluxDiaryYellow))
-                        Spacer(modifier = Modifier.width(2.dp))
+                        CalendarContentBar(color = FluxDiaryYellow)
                     }
                     if (showTodos && aggregation.pendingTodosCount > 0) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(FluxTodoRed))
-                        Spacer(modifier = Modifier.width(2.dp))
+                        CalendarContentBar(color = FluxTodoRed)
                     }
                     if (showTodos && aggregation.completedTodosCount > 0) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color.Gray))
+                        CalendarContentBar(color = Color.Gray)
                     }
                     if (showEvents && aggregation.eventColors.isNotEmpty()) {
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color(android.graphics.Color.parseColor(aggregation.eventColors.first())))
-                        )
+                        CalendarContentBar(color = Color(android.graphics.Color.parseColor(aggregation.eventColors.first())))
                     }
                     if (showTrash && aggregation.deletedCount > 0) {
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = "删",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.Gray
-                        )
+                        CalendarContentBar(color = Color.Gray)
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun CalendarContentBar(color: Color) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(0.58f)
+            .height(3.dp)
+            .background(color, shape = MaterialTheme.shapes.extraSmall)
+    )
 }

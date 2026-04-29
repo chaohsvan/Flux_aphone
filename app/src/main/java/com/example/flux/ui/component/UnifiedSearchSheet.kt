@@ -3,6 +3,8 @@ package com.example.flux.ui.component
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -27,7 +29,7 @@ fun UnifiedSearchSheet(
     title: String,
     query: String,
     placeholder: String,
-    infoText: String,
+    infoText: String? = null,
     onQueryChange: (String) -> Unit,
     onDismiss: () -> Unit,
     content: @Composable () -> Unit
@@ -36,6 +38,8 @@ fun UnifiedSearchSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .imePadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
@@ -61,12 +65,14 @@ fun UnifiedSearchSheet(
                     }
                 }
             )
-            Text(
-                text = infoText,
-                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (!infoText.isNullOrBlank()) {
+                Text(
+                    text = infoText,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             content()
         }
     }

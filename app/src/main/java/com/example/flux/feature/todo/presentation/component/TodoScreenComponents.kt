@@ -10,15 +10,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -34,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.domain.todo.TodoExportFormat
+import com.example.flux.core.ui.DateField
 import com.example.flux.feature.todo.domain.TodoFilterState
 import com.example.flux.feature.todo.domain.TodoPriorityFilter
 import com.example.flux.feature.todo.domain.TodoStats
@@ -122,15 +120,11 @@ fun TodoFilterSheet(
     onPriorityChange: (TodoPriorityFilter) -> Unit,
     onTimeChange: (TodoTimeFilter) -> Unit,
     onProjectChange: (String?) -> Unit,
-    onCreateProject: (String) -> Unit,
-    onDeleteProject: (String) -> Unit,
     onCustomStartDateChange: (String) -> Unit,
     onCustomEndDateChange: (String) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var newProjectName by remember { mutableStateOf("") }
-
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -165,37 +159,8 @@ fun TodoFilterSheet(
                         selected = filterState.projectId == project.id,
                         onClick = { onProjectChange(project.id) },
                         label = { Text(project.name) },
-                        trailingIcon = {
-                            IconButton(onClick = { onDeleteProject(project.id) }) {
-                                Icon(Icons.Default.Close, contentDescription = "删除标签")
-                            }
-                        },
                         modifier = Modifier.padding(end = 8.dp)
                     )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = newProjectName,
-                    onValueChange = { newProjectName = it },
-                    label = { Text("新项目名称") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        val name = newProjectName.trim()
-                        if (name.isNotBlank()) {
-                            onCreateProject(name)
-                            newProjectName = ""
-                        }
-                    },
-                    enabled = newProjectName.isNotBlank()
-                ) {
-                    Text("添加")
                 }
             }
 
@@ -225,25 +190,152 @@ fun TodoFilterSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
+                DateField(
                     value = filterState.customStartDate,
                     onValueChange = onCustomStartDateChange,
-                    label = { Text("开始日期") },
-                    placeholder = { Text("YYYY-MM-DD") },
-                    singleLine = true,
+                    label = "开始日期",
                     modifier = Modifier.weight(1f)
                 )
-                OutlinedTextField(
+                DateField(
                     value = filterState.customEndDate,
                     onValueChange = onCustomEndDateChange,
-                    label = { Text("结束日期") },
-                    placeholder = { Text("YYYY-MM-DD") },
-                    singleLine = true,
+                    label = "结束日期",
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TodoTagManagementSheet(
+    projects: List<TodoProjectEntity>,
+    onCreateProject: (String) -> Unit,
+    onRenameProject: (String, String) -> Unit,
+    onDeleteProject: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newProjectName by remember { mutableStateOf("") }
+    var editingProjectId by remember { mutableStateOf<String?>(null) }
+    var editingProjectName by remember { mutableStateOf("") }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            Text("标签管理", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = newProjectName,
+                    onValueChange = { newProjectName = it },
+                    label = { Text("新标签名称") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = {
+                        val name = newProjectName.trim()
+                        if (name.isNotBlank()) {
+                            onCreateProject(name)
+                            newProjectName = ""
+                        }
+                    },
+                    enabled = newProjectName.isNotBlank()
+                ) {
+                    Text("添加")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (projects.isEmpty()) {
+                Text(
+                    text = "暂无标签",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+            } else {
+                projects.forEach { project ->
+                    if (editingProjectId == project.id) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = editingProjectName,
+                                onValueChange = { editingProjectName = it },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = {
+                                    val name = editingProjectName.trim()
+                                    if (name.isNotBlank()) {
+                                        onRenameProject(project.id, name)
+                                        editingProjectId = null
+                                        editingProjectName = ""
+                                    }
+                                },
+                                enabled = editingProjectName.isNotBlank()
+                            ) {
+                                Text("保存")
+                            }
+                            TextButton(
+                                onClick = {
+                                    editingProjectId = null
+                                    editingProjectName = ""
+                                }
+                            ) {
+                                Text("取消")
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = project.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(
+                                    onClick = {
+                                        editingProjectId = project.id
+                                        editingProjectName = project.name
+                                    }
+                                ) {
+                                    Text("重命名")
+                                }
+                                TextButton(onClick = { onDeleteProject(project.id) }) {
+                                    Text("删除", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

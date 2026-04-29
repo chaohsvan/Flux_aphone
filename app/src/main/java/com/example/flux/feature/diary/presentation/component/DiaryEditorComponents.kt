@@ -16,6 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.TextFieldValue
+import com.example.flux.core.ui.DateField
+import com.example.flux.core.ui.TimeField
 import com.example.flux.feature.diary.presentation.DiaryEditorUiState
 
 enum class MarkdownEditorAction {
@@ -33,12 +35,12 @@ enum class MarkdownEditorAction {
 @Composable
 fun EditorStatsRow(
     isPreviewMode: Boolean,
-    isFocusMode: Boolean,
+    isMetadataExpanded: Boolean,
+    showMetadataToggle: Boolean,
+    onToggleMetadata: () -> Unit,
     charCount: Int,
     lineCount: Int,
     paragraphCount: Int,
-    highlightCount: Int,
-    onToggleFocus: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -51,19 +53,18 @@ fun EditorStatsRow(
             selected = isPreviewMode,
             onClick = {},
             enabled = false,
-            label = { Text(if (isPreviewMode) "预览模式" else "编辑模式") }
+            label = { Text(if (isPreviewMode) "专注预览" else "编辑模式") }
         )
-        FilterChip(
-            selected = isFocusMode,
-            onClick = onToggleFocus,
-            label = { Text(if (isFocusMode) "专注模式已开" else "专注模式") }
-        )
+        if (showMetadataToggle) {
+            FilterChip(
+                selected = isMetadataExpanded,
+                onClick = onToggleMetadata,
+                label = { Text(if (isMetadataExpanded) "\u6536\u8d77\u4fe1\u606f" else "\u65e5\u8bb0\u4fe1\u606f") }
+            )
+        }
         FilterChip(selected = false, onClick = {}, enabled = false, label = { Text("字数 $charCount") })
         FilterChip(selected = false, onClick = {}, enabled = false, label = { Text("行数 $lineCount") })
         FilterChip(selected = false, onClick = {}, enabled = false, label = { Text("段落 $paragraphCount") })
-        if (highlightCount > 0) {
-            FilterChip(selected = false, onClick = {}, enabled = false, label = { Text("命中 $highlightCount") })
-        }
     }
 }
 
@@ -118,19 +119,16 @@ fun DiaryMetadataEditor(
             .padding(bottom = 8.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
+            DateField(
                 value = uiState.entryDate,
                 onValueChange = onDateChange,
-                label = { Text("日期") },
-                singleLine = true,
+                label = "日期",
                 modifier = Modifier.weight(1f)
             )
-            OutlinedTextField(
+            TimeField(
                 value = uiState.entryTime ?: "",
                 onValueChange = onTimeChange,
-                label = { Text("时间") },
-                placeholder = { Text("HH:mm") },
-                singleLine = true,
+                label = "时间",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -173,7 +171,7 @@ fun DiaryMetadataEditor(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val moods = listOf("开心", "平静", "低落", "紧张")
+            val moods = DiaryMoodOptions
             moods.forEach { mood ->
                 FilterChip(
                     selected = uiState.mood == mood,

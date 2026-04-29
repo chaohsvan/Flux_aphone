@@ -6,6 +6,7 @@ import com.example.flux.core.database.entity.AttachmentMetadataEntity
 import com.example.flux.core.database.entity.CalendarEventEntity
 import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.TodoEntity
+import com.example.flux.core.util.TimeUtil
 import com.example.flux.feature.search.domain.SearchFeatureGateway
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -127,14 +128,16 @@ class GlobalSearchViewModel @Inject constructor(
     }
 
     private fun TodoEntity.toSearchResult(): GlobalSearchResult {
-        val time = dueAt?.takeIf { it.isNotBlank() } ?: startAt?.takeIf { it.isNotBlank() } ?: createdAt
+        val time = dueAt?.takeIf { it.isNotBlank() } ?: startAt?.takeIf { it.isNotBlank() }
+        val fallbackTime = TimeUtil.formatTimestampForDisplay(createdAt)
+        val dateSortKey = TimeUtil.localDatePart(time ?: createdAt).orEmpty()
         return GlobalSearchResult(
             id = id,
             type = GlobalSearchResultType.TODO,
             title = title,
-            subtitle = description.ifBlank { time },
-            overline = "待办 | ${time.take(10)}",
-            dateSortKey = time.take(10)
+            subtitle = description.ifBlank { time ?: fallbackTime },
+            overline = "待办 | $dateSortKey",
+            dateSortKey = dateSortKey
         )
     }
 

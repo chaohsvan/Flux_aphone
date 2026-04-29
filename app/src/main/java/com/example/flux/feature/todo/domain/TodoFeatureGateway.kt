@@ -2,6 +2,7 @@ package com.example.flux.feature.todo.domain
 
 import android.content.Context
 import android.net.Uri
+import com.example.flux.core.database.dao.TodoSubtaskProgressEntity
 import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.entity.TodoHistoryEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
@@ -12,11 +13,13 @@ import kotlinx.coroutines.flow.Flow
 interface TodoFeatureGateway {
     fun getActiveTodos(): Flow<List<TodoEntity>>
     fun getActiveProjects(): Flow<List<TodoProjectEntity>>
+    fun getSubtaskProgress(): Flow<List<TodoSubtaskProgressEntity>>
     fun getHistoryForTodo(todoId: String): Flow<List<TodoHistoryEntity>>
     fun getSubtasksForTodo(todoId: String): Flow<List<TodoSubtaskEntity>>
 
     suspend fun getTodoById(id: String): TodoEntity?
     suspend fun createProject(name: String): TodoProjectEntity
+    suspend fun renameProject(projectId: String, name: String)
     suspend fun softDeleteProject(projectId: String)
     suspend fun saveTodoWithHistory(todo: TodoEntity, action: String, summary: String, payloadJson: String = "{}")
     suspend fun updatePriority(ids: Set<String>, priority: String)

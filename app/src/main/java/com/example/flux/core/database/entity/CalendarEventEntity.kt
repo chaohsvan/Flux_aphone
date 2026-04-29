@@ -9,7 +9,8 @@ import androidx.room.PrimaryKey
     tableName = "calendar_events",
     indices = [
         Index(name = "idx_events_range", value = ["start_at", "end_at", "deleted_at"]),
-        Index(name = "idx_events_start", value = ["start_at", "deleted_at"])
+        Index(name = "idx_events_start", value = ["start_at", "deleted_at"]),
+        Index(name = "idx_events_subscription", value = ["subscription_id", "external_uid"], unique = true)
     ]
 )
 data class CalendarEventEntity(
@@ -23,6 +24,9 @@ data class CalendarEventEntity(
     @ColumnInfo(name = "location_name") val locationName: String?,
     @ColumnInfo(name = "reminder_minutes") val reminderMinutes: Int?,
     @ColumnInfo(name = "recurrence_rule") val recurrenceRule: String?,
+    @ColumnInfo(name = "subscription_id") val subscriptionId: String? = null,
+    @ColumnInfo(name = "external_uid") val externalUid: String? = null,
+    @ColumnInfo(name = "external_hash") val externalHash: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: String,
     @ColumnInfo(name = "updated_at") val updatedAt: String,
     @ColumnInfo(name = "deleted_at") val deletedAt: String?,

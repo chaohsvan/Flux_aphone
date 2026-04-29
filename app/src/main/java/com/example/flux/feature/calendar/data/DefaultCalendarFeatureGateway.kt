@@ -49,11 +49,23 @@ class DefaultCalendarFeatureGateway @Inject constructor(
         eventRepository.softDeleteEvent(id)
     }
 
+    override suspend fun softDeleteEventFromDate(id: String, date: String) {
+        eventRepository.softDeleteEventFromDate(id, date)
+    }
+
     override suspend fun toggleHolidayOverride(date: String, defaultIsHoliday: Boolean) {
         holidayRepository.toggleHolidayOverride(date, defaultIsHoliday)
     }
 
     override suspend fun createProject(name: String): TodoProjectEntity = todoRepository.createProject(name)
+
+    override suspend fun renameProject(projectId: String, name: String) {
+        todoRepository.renameProject(projectId, name)
+    }
+
+    override suspend fun softDeleteProject(projectId: String) {
+        todoRepository.softDeleteProject(projectId)
+    }
 
     override suspend fun saveTodoWithHistory(
         todo: TodoEntity,

@@ -12,6 +12,8 @@ import com.example.flux.core.domain.diary.RestoreDiaryUseCase
 import com.example.flux.core.domain.todo.RestoreTodoUseCase
 import com.example.flux.core.domain.trash.ObserveTrashSummaryUseCase
 import com.example.flux.core.domain.trash.TrashSummary
+import com.example.flux.core.settings.AppPreferences
+import com.example.flux.core.settings.WeatherAppBinding
 import com.example.flux.core.util.RecurrenceUtil
 import com.example.flux.core.util.TimeUtil
 import com.example.flux.feature.calendar.domain.CalendarFeatureGateway
@@ -33,6 +35,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+private data class CalendarSecondaryDisplayFlags(
+    val showHolidays: Boolean,
+    val showTrash: Boolean,
+    val holidayEditMode: Boolean,
+    val weekStartDay: Int
+)
+
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
     private val calendarFeatureGateway: CalendarFeatureGateway,
@@ -40,6 +49,7 @@ class CalendarViewModel @Inject constructor(
     private val restoreDiaryUseCase: RestoreDiaryUseCase,
     private val restoreTodoUseCase: RestoreTodoUseCase,
     private val restoreEventUseCase: RestoreEventUseCase,
+    appPreferences: AppPreferences,
     observeTrashSummaryUseCase: ObserveTrashSummaryUseCase
 ) : ViewModel() {
 
@@ -192,7 +202,8 @@ class CalendarViewModel @Inject constructor(
                             id = todo.id,
                             type = CalendarSearchResultType.TODO,
                             title = todo.title,
-                            subtitle = listOfNotNull(todo.dueAt, todo.startAt, todo.createdAt).firstOrNull().orEmpty(),
+                            subtitle = listOfNotNull(todo.dueAt, todo.startAt).firstOrNull()
+                                ?: TimeUtil.formatTimestampForDisplay(todo.createdAt),
                             date = todo.searchDate()
                         )
                     }
@@ -264,7 +275,7 @@ class CalendarViewModel @Inject constructor(
                         isHoliday = isHoliday,
                         holidayLabel = override?.label ?: if (defaultHoliday) "\u5468\u672b\u5047\u671f" else null,
                         deletedDiaries = deletedDiaries.filter { it.entryDate == date },
-                        deletedTodos = deletedTodos.filter { (it.dueAt ?: it.createdAt).take(10) == date },
+            deletedTodos = deletedTodos.filter { TimeUtil.localDatePart(it.dueAt ?: it.createdAt) == date },
                         deletedEvents = deletedEvents.filter { it.startAt.take(10) == date }
                     )
                 }
@@ -276,17 +287,33 @@ class CalendarViewModel @Inject constructor(
             initialValue = null
         )
 
+    val weekStartDay: StateFlow<Int> = appPreferences.observeWeekStartDay()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = Calendar.SUNDAY
+        )
+
+    val weatherAppBinding: StateFlow<WeatherAppBinding?> = appPreferences.observeWeatherAppBinding()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
     private val contentSources = combine(
         aggregatedData,
         currentMonth,
         projects,
-        holidayOverrides
-    ) { aggregatedData, currentMonth, projects, holidayOverrides ->
+        holidayOverrides,
+        weatherAppBinding
+    ) { aggregatedData, currentMonth, projects, holidayOverrides, weatherAppBinding ->
         CalendarPrimaryContentState(
             aggregatedData = aggregatedData,
             currentMonth = currentMonth,
             projects = projects,
-            holidayOverrides = holidayOverrides
+            holidayOverrides = holidayOverrides,
+            weatherAppBinding = weatherAppBinding
         )
     }
 
@@ -308,6 +335,7 @@ class CalendarViewModel @Inject constructor(
             currentMonth = contentSources.currentMonth,
             projects = contentSources.projects,
             holidayOverrides = contentSources.holidayOverrides,
+            weatherAppBinding = contentSources.weatherAppBinding,
             selectedDateDetails = selectedDateDetails,
             monthHistory = monthHistory,
             trashSummary = trashSummary
@@ -329,9 +357,15 @@ class CalendarViewModel @Inject constructor(
     private val secondaryDisplayFlags = combine(
         _showHolidays,
         _showTrash,
-        _holidayEditMode
-    ) { showHolidays, showTrash, holidayEditMode ->
-        Triple(showHolidays, showTrash, holidayEditMode)
+        _holidayEditMode,
+        weekStartDay
+    ) { showHolidays, showTrash, holidayEditMode, weekStartDay ->
+        CalendarSecondaryDisplayFlags(
+            showHolidays = showHolidays,
+            showTrash = showTrash,
+            holidayEditMode = holidayEditMode,
+            weekStartDay = weekStartDay
+        )
     }
 
     private val displayState: StateFlow<CalendarDisplayState> = combine(
@@ -340,14 +374,14 @@ class CalendarViewModel @Inject constructor(
         _selectedDate
     ) { primaryDisplayFlags, secondaryDisplayFlags, selectedDate ->
         val (showDiaries, showTodos, showEvents) = primaryDisplayFlags
-        val (showHolidays, showTrash, holidayEditMode) = secondaryDisplayFlags
         CalendarDisplayState(
             showDiaries = showDiaries,
             showTodos = showTodos,
             showEvents = showEvents,
-            showHolidays = showHolidays,
-            showTrash = showTrash,
-            holidayEditMode = holidayEditMode,
+            showHolidays = secondaryDisplayFlags.showHolidays,
+            showTrash = secondaryDisplayFlags.showTrash,
+            holidayEditMode = secondaryDisplayFlags.holidayEditMode,
+            weekStartDay = secondaryDisplayFlags.weekStartDay,
             selectedDate = selectedDate
         )
     }.stateIn(
@@ -369,12 +403,14 @@ class CalendarViewModel @Inject constructor(
             selectedDateDetails = contentState.selectedDateDetails,
             monthHistory = contentState.monthHistory,
             trashSummary = contentState.trashSummary,
+            weatherAppBinding = contentState.weatherAppBinding,
             showDiaries = displayState.showDiaries,
             showTodos = displayState.showTodos,
             showEvents = displayState.showEvents,
             showHolidays = displayState.showHolidays,
             showTrash = displayState.showTrash,
-            holidayEditMode = displayState.holidayEditMode
+            holidayEditMode = displayState.holidayEditMode,
+            weekStartDay = displayState.weekStartDay
         )
     }.stateIn(
         scope = viewModelScope,
@@ -513,6 +549,20 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    fun renameProject(projectId: String, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            calendarFeatureGateway.renameProject(projectId, trimmed)
+        }
+    }
+
+    fun deleteProject(projectId: String) {
+        viewModelScope.launch {
+            calendarFeatureGateway.softDeleteProject(projectId)
+        }
+    }
+
     fun addTodo(title: String, description: String, priority: String, projectId: String?, dueAt: String) {
         if (!TimeUtil.isValidDateOrDateTime(dueAt.trim())) return
         viewModelScope.launch {
@@ -539,9 +589,13 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    fun deleteEvent(id: String) {
+    fun deleteEvent(id: String, date: String = _selectedDate.value.orEmpty()) {
         viewModelScope.launch {
-            calendarFeatureGateway.softDeleteEvent(id)
+            if (TimeUtil.isValidDate(date)) {
+                calendarFeatureGateway.softDeleteEventFromDate(id, date)
+            } else {
+                calendarFeatureGateway.softDeleteEvent(id)
+            }
         }
     }
 
@@ -582,7 +636,7 @@ class CalendarViewModel @Inject constructor(
     }
 
     private fun TodoEntity.occursOn(date: String): Boolean {
-        val raw = dueAt ?: createdAt
+        val raw = dueAt ?: TimeUtil.localDatePart(createdAt).orEmpty()
         return RecurrenceUtil.occurrenceDates(
             value = raw,
             recurrence = recurrence,
@@ -617,7 +671,7 @@ class CalendarViewModel @Inject constructor(
     private fun TodoEntity.searchDate(): String {
         return dueAt?.takeIf { it.length >= 10 }?.take(10)
             ?: startAt?.takeIf { it.length >= 10 }?.take(10)
-            ?: createdAt.take(10)
+            ?: TimeUtil.localDatePart(createdAt).orEmpty()
     }
 
     private fun CalendarEventEntity.searchDate(): String {

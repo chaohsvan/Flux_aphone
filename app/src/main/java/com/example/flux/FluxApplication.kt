@@ -4,6 +4,7 @@ import android.app.Application
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.example.flux.core.database.FluxPrepackagedDatabaseNormalizer
+import com.example.flux.core.sync.IcsSyncWorker
 import com.example.flux.core.util.DataDirectoryInitializer
 import com.example.flux.core.util.DataPaths
 import dagger.hilt.android.HiltAndroidApp
@@ -14,6 +15,7 @@ class FluxApplication : Application() {
         super.onCreate()
         DataDirectoryInitializer.ensure(this)
         normalizeExistingPrepackagedDatabase()
+        IcsSyncWorker.schedule(this)
     }
 
     private fun normalizeExistingPrepackagedDatabase() {

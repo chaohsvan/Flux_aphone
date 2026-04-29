@@ -17,7 +17,7 @@ class RestoreDiaryUseCase @Inject constructor(
                 diaryRepository.replaceDiaryRecord(
                     diary.copy(
                         deletedAt = null,
-                        restoredAt = null,
+                        restoredAt = now,
                         restoredIntoId = null,
                         updatedAt = now
                     )

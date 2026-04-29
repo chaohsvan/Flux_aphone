@@ -74,14 +74,23 @@ fun String.recurrenceLabel(): String {
 
 val TimelineFallbackColor = Color(0xFF4A90E2)
 
-fun String.weekDates(): List<String> {
+fun calendarWeekdayLabels(weekStartDay: Int): List<String> {
+    return if (weekStartDay == Calendar.MONDAY) {
+        listOf("一", "二", "三", "四", "五", "六", "日")
+    } else {
+        listOf("日", "一", "二", "三", "四", "五", "六")
+    }
+}
+
+fun String.weekDates(weekStartDay: Int = Calendar.SUNDAY): List<String> {
     val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val baseDate = runCatching { formatter.parse(this) }.getOrNull() ?: return listOf(this)
+    val normalizedWeekStart = if (weekStartDay == Calendar.MONDAY) Calendar.MONDAY else Calendar.SUNDAY
     val calendar = Calendar.getInstance().apply {
         time = baseDate
-        firstDayOfWeek = Calendar.SUNDAY
+        firstDayOfWeek = normalizedWeekStart
     }
-    val dayOffset = calendar.get(Calendar.DAY_OF_WEEK) - calendar.firstDayOfWeek
+    val dayOffset = (calendar.get(Calendar.DAY_OF_WEEK) - calendar.firstDayOfWeek + 7) % 7
     calendar.add(Calendar.DAY_OF_MONTH, -dayOffset)
     return List(7) {
         formatter.format(calendar.time).also {
@@ -90,8 +99,8 @@ fun String.weekDates(): List<String> {
     }
 }
 
-fun String.weekRangeLabel(): String {
-    val dates = weekDates()
+fun String.weekRangeLabel(weekStartDay: Int = Calendar.SUNDAY): String {
+    val dates = weekDates(weekStartDay)
     val start = dates.firstOrNull().orEmpty()
     val end = dates.lastOrNull().orEmpty()
     return if (start.isBlank() || end.isBlank()) this else "$start | $end"

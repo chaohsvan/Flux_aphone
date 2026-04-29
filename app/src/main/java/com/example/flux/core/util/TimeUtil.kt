@@ -9,9 +9,8 @@ import java.util.UUID
 
 object TimeUtil {
     fun getCurrentIsoTime(): String {
-        val tz = TimeZone.getTimeZone("UTC")
-        val df = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-        df.timeZone = tz
+        val df = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+        df.timeZone = TimeZone.getDefault()
         return df.format(Date())
     }
 
@@ -44,6 +43,57 @@ object TimeUtil {
             (minute == null || minute in 0..59)
     }
 
+    fun isValidClockTime(value: String): Boolean {
+        return Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(value)
+    }
+
+    fun normalizeDateInput(value: String): String {
+        val digits = value.filter(Char::isDigit).take(8)
+        return buildString {
+            append(digits.take(4))
+            if (digits.length > 4) append("-").append(digits.drop(4).take(2))
+            if (digits.length > 6) append("-").append(digits.drop(6).take(2))
+        }
+    }
+
+    fun normalizeClockInput(value: String): String {
+        val digits = value.filter(Char::isDigit).take(4)
+        return buildString {
+            append(digits.take(2))
+            if (digits.length > 2) append(":").append(digits.drop(2).take(2))
+        }
+    }
+
+    fun normalizeDateTimeInput(value: String): String {
+        val digits = value.filter(Char::isDigit).take(12)
+        val date = normalizeDateInput(digits.take(8))
+        val timeDigits = digits.drop(8)
+        if (timeDigits.isEmpty()) return date
+        return "$date ${normalizeClockInput(timeDigits)}"
+    }
+
+    fun formatTimestampForDisplay(value: String?): String {
+        val raw = value?.trim().orEmpty()
+        if (raw.isBlank()) return ""
+        parseTimestamp(raw)?.let { date ->
+            return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).apply {
+                timeZone = TimeZone.getDefault()
+            }.format(date)
+        }
+        return raw.replace('T', ' ').removeSuffix("Z").take(16)
+    }
+
+    fun localDatePart(value: String?): String? {
+        val raw = value?.trim().orEmpty()
+        if (raw.isBlank()) return null
+        parseTimestamp(raw)?.let { date ->
+            return SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                timeZone = TimeZone.getDefault()
+            }.format(date)
+        }
+        return raw.takeIf { it.length >= 10 }?.take(10)
+    }
+
     private fun isValidCalendarDate(year: Int, month: Int, day: Int): Boolean {
         return runCatching {
             Calendar.getInstance().apply {
@@ -55,5 +105,20 @@ object TimeUtil {
                 time
             }
         }.isSuccess
+    }
+
+    private fun parseTimestamp(value: String): Date? {
+        val pattern = when {
+            Regex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z").matches(value) -> "yyyy-MM-dd'T'HH:mm:ss'Z'" to TimeZone.getTimeZone("UTC")
+            Regex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}").matches(value) -> "yyyy-MM-dd'T'HH:mm:ss" to TimeZone.getDefault()
+            Regex("\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}").matches(value) -> "yyyy-MM-dd HH:mm" to TimeZone.getDefault()
+            else -> return null
+        }
+        return runCatching {
+            SimpleDateFormat(pattern.first, Locale.US).apply {
+                isLenient = false
+                timeZone = pattern.second
+            }.parse(value)
+        }.getOrNull()
     }
 }

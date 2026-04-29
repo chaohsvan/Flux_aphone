@@ -150,7 +150,7 @@ fun DiaryFilterSheet(
             Spacer(modifier = Modifier.height(16.dp))
             Text("心情", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            val moods = listOf("开心", "平静", "伤心", "愤怒")
+            val moods = DiaryMoodOptions
             LazyRow {
                 items(moods) { mood ->
                     FilterChip(

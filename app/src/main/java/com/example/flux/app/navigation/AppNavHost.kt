@@ -1,5 +1,8 @@
 package com.example.flux.app.navigation
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -9,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -21,7 +25,9 @@ import com.example.flux.feature.diary.presentation.DiaryScreen
 import com.example.flux.feature.search.presentation.GlobalSearchResultType
 import com.example.flux.feature.search.presentation.GlobalSearchViewModel
 import com.example.flux.feature.search.presentation.component.GlobalSearchSheet
+import com.example.flux.feature.settings.presentation.CalendarSubscriptionSettingsScreen
 import com.example.flux.feature.settings.presentation.SettingsScreen
+import com.example.flux.feature.settings.presentation.WeatherAppBindingScreen
 import com.example.flux.feature.todo.presentation.TodoDetailScreen
 import com.example.flux.feature.todo.presentation.TodoScreen
 import com.example.flux.feature.trash.presentation.AttachmentManagerScreen
@@ -48,13 +54,25 @@ fun FluxAppNavHost() {
                     }
                 },
                 onNavigateToTrash = {
-                    navController.navigate(AppRoutes.TRASH)
+                    navController.navigate(AppRoutes.TRASH) {
+                        launchSingleTop = true
+                        restoreState = false
+                    }
                 },
                 onNavigateToAttachmentManager = { query ->
-                    navController.navigate(AppRoutes.attachmentManager(query))
+                    navController.navigate(AppRoutes.attachmentManager(query)) {
+                        launchSingleTop = true
+                        restoreState = false
+                    }
                 },
                 onNavigateToTodoDetail = { todoId ->
                     navController.navigate(AppRoutes.todoDetail(todoId))
+                },
+                onNavigateToCalendarSubscriptions = {
+                    navController.navigate(AppRoutes.CALENDAR_SUBSCRIPTIONS)
+                },
+                onNavigateToWeatherAppBinding = {
+                    navController.navigate(AppRoutes.WEATHER_APP_BINDING)
                 }
             )
         }
@@ -101,6 +119,12 @@ fun FluxAppNavHost() {
         ) {
             TodoDetailScreen(onNavigateUp = { navController.popBackStack() })
         }
+        composable(AppRoutes.CALENDAR_SUBSCRIPTIONS) {
+            CalendarSubscriptionSettingsScreen(onNavigateUp = { navController.popBackStack() })
+        }
+        composable(AppRoutes.WEATHER_APP_BINDING) {
+            WeatherAppBindingScreen(onNavigateUp = { navController.popBackStack() })
+        }
     }
 }
 
@@ -110,16 +134,30 @@ private fun FluxMainScaffold(
     onNavigateToDiaryFromCalendar: (String?, String) -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToAttachmentManager: (String) -> Unit,
-    onNavigateToTodoDetail: (String) -> Unit
+    onNavigateToTodoDetail: (String) -> Unit,
+    onNavigateToCalendarSubscriptions: () -> Unit,
+    onNavigateToWeatherAppBinding: () -> Unit
 ) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.DIARY) }
     var showGlobalSearch by rememberSaveable { mutableStateOf(false) }
     var calendarFocusDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastBackPressTime by rememberSaveable { mutableStateOf(0L) }
+    val context = LocalContext.current
 
     val globalSearchViewModel: GlobalSearchViewModel = hiltViewModel()
     val searchQuery by globalSearchViewModel.query.collectAsState()
     val searchScope by globalSearchViewModel.scope.collectAsState()
     val searchResults by globalSearchViewModel.results.collectAsState()
+
+    BackHandler(enabled = !showGlobalSearch) {
+        val now = System.currentTimeMillis()
+        if (now - lastBackPressTime <= EXIT_CONFIRM_WINDOW_MS) {
+            (context as? Activity)?.finish()
+        } else {
+            lastBackPressTime = now
+            Toast.makeText(context, "再按一次退出", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -162,6 +200,8 @@ private fun FluxMainScaffold(
             AppDestinations.SETTINGS -> SettingsScreen(
                 onNavigateToAttachmentManager = { onNavigateToAttachmentManager("") },
                 onNavigateToTrash = onNavigateToTrash,
+                onNavigateToCalendarSubscriptions = onNavigateToCalendarSubscriptions,
+                onNavigateToWeatherAppBinding = onNavigateToWeatherAppBinding,
                 onOpenGlobalSearch = { showGlobalSearch = true }
             )
         }
@@ -193,3 +233,5 @@ private fun FluxMainScaffold(
         )
     }
 }
+
+private const val EXIT_CONFIRM_WINDOW_MS = 2000L

@@ -13,17 +13,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -49,7 +49,6 @@ import com.example.flux.feature.diary.presentation.component.EditorStatsRow
 import com.example.flux.feature.diary.presentation.component.MarkdownEditorToolbar
 import com.example.flux.feature.diary.presentation.component.MarkdownText
 import com.example.flux.feature.diary.presentation.component.applyEditorAction
-import com.example.flux.feature.diary.presentation.component.countOccurrences
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,8 +58,8 @@ fun DiaryEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var isPreviewMode by remember { mutableStateOf(false) }
-    var isFocusMode by remember { mutableStateOf(false) }
-    var highlightQuery by remember { mutableStateOf("") }
+    var isMetadataExpanded by remember { mutableStateOf(false) }
+    var initializedReadMode by remember { mutableStateOf(false) }
     var editorValue by remember(uiState.id, uiState.entryDate) {
         mutableStateOf(TextFieldValue(uiState.contentMd))
     }
@@ -83,13 +82,19 @@ fun DiaryEditorScreen(
         }
     }
 
+    LaunchedEffect(uiState.isLoading, uiState.id) {
+        if (!uiState.isLoading && uiState.id != null && !initializedReadMode) {
+            isPreviewMode = true
+            initializedReadMode = true
+        }
+    }
+
     val lineCount = editorValue.text.lines().size.coerceAtLeast(1)
     val paragraphCount = editorValue.text
         .split(Regex("\\n\\s*\\n"))
         .count { it.isNotBlank() }
         .coerceAtLeast(1)
     val charCount = editorValue.text.filterNot { it.isWhitespace() }.length
-    val highlightCount = countOccurrences(editorValue.text, highlightQuery)
 
     Scaffold(
         topBar = {
@@ -116,16 +121,16 @@ fun DiaryEditorScreen(
                     IconButton(onClick = { isPreviewMode = !isPreviewMode }) {
                         Icon(
                             if (isPreviewMode) Icons.Default.Edit else Icons.Default.Check,
-                            contentDescription = if (isPreviewMode) "编辑" else "预览"
+                            contentDescription = if (isPreviewMode) "编辑" else "专注预览"
                         )
                     }
                     IconButton(onClick = { attachmentLauncher.launch(arrayOf("*/*")) }) {
-                        Icon(Icons.Default.Add, contentDescription = "添加附件")
+                        Icon(Icons.Default.AttachFile, contentDescription = "添加附件")
                     }
                     IconButton(onClick = {
                         viewModel.saveDiary(onSaved = onNavigateUp)
                     }) {
-                        Icon(Icons.Default.Check, contentDescription = "保存")
+                        Icon(Icons.Default.Save, contentDescription = "保存")
                     }
                 }
             )
@@ -165,15 +170,15 @@ fun DiaryEditorScreen(
 
             EditorStatsRow(
                 isPreviewMode = isPreviewMode,
-                isFocusMode = isFocusMode,
+                isMetadataExpanded = isMetadataExpanded,
+                showMetadataToggle = !isPreviewMode,
+                onToggleMetadata = { isMetadataExpanded = !isMetadataExpanded },
                 charCount = charCount,
                 lineCount = lineCount,
                 paragraphCount = paragraphCount,
-                highlightCount = highlightCount,
-                onToggleFocus = { isFocusMode = !isFocusMode }
             )
 
-            if (!isFocusMode) {
+            if (!isPreviewMode && isMetadataExpanded) {
                 DiaryMetadataEditor(
                     uiState = uiState,
                     onDateChange = viewModel::updateEntryDate,
@@ -185,15 +190,6 @@ fun DiaryEditorScreen(
                     onFavoriteToggle = viewModel::toggleFavorite
                 )
             }
-
-            OutlinedTextField(
-                value = highlightQuery,
-                onValueChange = { highlightQuery = it },
-                label = { Text("关键词定位") },
-                placeholder = { Text("输入后在预览中高亮") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             uiState.errorMessage?.let { errorMessage ->
                 Text(
@@ -208,19 +204,21 @@ fun DiaryEditorScreen(
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             Spacer(modifier = Modifier.height(8.dp))
 
-            MarkdownEditorToolbar(
-                onAction = { action ->
-                    editorValue = applyEditorAction(editorValue, action)
-                    viewModel.updateContent(editorValue.text)
-                }
-            )
+            if (!isPreviewMode) {
+                MarkdownEditorToolbar(
+                    onAction = { action ->
+                        editorValue = applyEditorAction(editorValue, action)
+                        viewModel.updateContent(editorValue.text)
+                    }
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             if (isPreviewMode) {
                 MarkdownText(
                     text = editorValue.text,
-                    highlightQuery = highlightQuery,
+                    highlightQuery = "",
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)

@@ -51,7 +51,7 @@ class CalendarAggregatorUseCase @Inject constructor(
             }
             
             todos.forEach { todo ->
-                val rawDate = todo.dueAt ?: todo.createdAt
+                val rawDate = todo.dueAt ?: TimeUtil.localDatePart(todo.createdAt).orEmpty()
                 RecurrenceUtil.occurrenceDates(
                     value = rawDate,
                     recurrence = todo.recurrence,
@@ -87,7 +87,7 @@ class CalendarAggregatorUseCase @Inject constructor(
                 result.addDeletedMarker(diary.entryDate)
             }
             deletedTodos.forEach { todo ->
-                result.addDeletedMarker((todo.dueAt ?: todo.createdAt).take(10))
+                result.addDeletedMarker(TimeUtil.localDatePart(todo.dueAt ?: todo.createdAt).orEmpty())
             }
             deletedEvents.forEach { event ->
                 result.addDeletedMarker(event.startAt.take(10))

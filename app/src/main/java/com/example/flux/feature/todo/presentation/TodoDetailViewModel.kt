@@ -125,11 +125,11 @@ class TodoDetailViewModel @Inject constructor(
     }
 
     fun updateStartAt(value: String) {
-        _uiState.update { it.copy(startAt = value, errorMessage = null) }
+        _uiState.update { it.copy(startAt = TimeUtil.normalizeDateTimeInput(value), errorMessage = null) }
     }
 
     fun updateDueAt(value: String) {
-        _uiState.update { it.copy(dueAt = value, errorMessage = null) }
+        _uiState.update { it.copy(dueAt = TimeUtil.normalizeDateTimeInput(value), errorMessage = null) }
     }
 
     fun updateReminderMinutes(value: String) {
@@ -152,7 +152,7 @@ class TodoDetailViewModel @Inject constructor(
     }
 
     fun updateRecurrenceUntil(value: String) {
-        _uiState.update { it.copy(recurrenceUntil = value, errorMessage = null) }
+        _uiState.update { it.copy(recurrenceUntil = TimeUtil.normalizeDateInput(value), errorMessage = null) }
     }
 
     fun setPriority(priority: String) {

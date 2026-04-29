@@ -3,11 +3,13 @@ package com.example.flux.core.database.repository
 import com.example.flux.core.database.dao.TodoDao
 import com.example.flux.core.database.dao.TodoHistoryDao
 import com.example.flux.core.database.dao.TodoProjectDao
+import com.example.flux.core.database.dao.TodoSubtaskProgressEntity
 import com.example.flux.core.database.dao.TodoSubtaskDao
 import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.database.entity.TodoHistoryEntity
 import com.example.flux.core.database.entity.TodoProjectEntity
 import com.example.flux.core.database.entity.TodoSubtaskEntity
+import com.example.flux.core.reminder.ReminderScheduler
 import com.example.flux.core.util.TimeUtil
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -16,7 +18,8 @@ class TodoRepository @Inject constructor(
     private val todoDao: TodoDao,
     private val todoSubtaskDao: TodoSubtaskDao,
     private val todoProjectDao: TodoProjectDao,
-    private val todoHistoryDao: TodoHistoryDao
+    private val todoHistoryDao: TodoHistoryDao,
+    private val reminderScheduler: ReminderScheduler
 ) {
     fun getActiveTodos(): Flow<List<TodoEntity>> = todoDao.getActiveTodos()
 
@@ -27,6 +30,8 @@ class TodoRepository @Inject constructor(
     fun getActiveProjects(): Flow<List<TodoProjectEntity>> = todoProjectDao.getActiveProjects()
 
     fun getHistoryForTodo(todoId: String): Flow<List<TodoHistoryEntity>> = todoHistoryDao.getHistoryForTodo(todoId)
+
+    fun getSubtaskProgress(): Flow<List<TodoSubtaskProgressEntity>> = todoSubtaskDao.getSubtaskProgress()
 
     suspend fun getTodoById(id: String): TodoEntity? = todoDao.getTodoById(id)
 
@@ -60,12 +65,20 @@ class TodoRepository @Inject constructor(
         todoDao.clearProject(projectId, now)
     }
 
+    suspend fun renameProject(projectId: String, name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) return
+        todoProjectDao.renameProject(projectId, trimmedName, TimeUtil.getCurrentIsoTime())
+    }
+
     suspend fun saveTodo(todo: TodoEntity) {
         todoDao.insertTodo(todo)
+        reminderScheduler.scheduleTodo(todo)
     }
 
     suspend fun saveTodoWithHistory(todo: TodoEntity, action: String, summary: String, payloadJson: String = "{}") {
         todoDao.insertTodo(todo)
+        reminderScheduler.scheduleTodo(todo)
         addHistory(todo.id, action, summary, payloadJson)
     }
 
@@ -129,6 +142,7 @@ class TodoRepository @Inject constructor(
 
     suspend fun updateTodoStatus(id: String, status: String) {
         todoDao.updateTodoStatus(id, status)
+        todoDao.getTodoById(id)?.let { reminderScheduler.scheduleTodo(it) }
     }
 
     suspend fun updatePriority(ids: Set<String>, priority: String) {
@@ -156,6 +170,7 @@ class TodoRepository @Inject constructor(
     suspend fun softDeleteTodo(id: String) {
         val timestamp = TimeUtil.getCurrentIsoTime()
         todoDao.softDeleteTodo(id, timestamp)
+        reminderScheduler.cancelTodo(id)
         addHistory(id, "delete", "移入回收站")
     }
 }
