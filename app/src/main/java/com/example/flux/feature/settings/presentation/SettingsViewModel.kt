@@ -25,6 +25,7 @@ data class SettingsUiState(
     val isImportingBackup: Boolean = false,
     val isSyncingCalendar: Boolean = false,
     val weekStartDay: Int = Calendar.SUNDAY,
+    val reminderSoundEnabled: Boolean = true,
     val weatherAppBinding: WeatherAppBinding? = null,
     val calendarSubscriptions: List<CalendarSubscriptionEntity> = emptyList(),
     val trashSummary: TrashSummary = TrashSummary()
@@ -38,6 +39,7 @@ private data class SettingsOperationState(
 
 private data class SettingsContentState(
     val weekStartDay: Int = Calendar.SUNDAY,
+    val reminderSoundEnabled: Boolean = true,
     val weatherAppBinding: WeatherAppBinding? = null,
     val calendarSubscriptions: List<CalendarSubscriptionEntity> = emptyList(),
     val trashSummary: TrashSummary = TrashSummary()
@@ -80,6 +82,13 @@ class SettingsViewModel @Inject constructor(
                 initialValue = null
             )
 
+    val reminderSoundEnabled: StateFlow<Boolean> = settingsFeatureGateway.observeReminderSoundEnabled()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        )
+
     val trashSummary: StateFlow<TrashSummary> = settingsFeatureGateway.observeTrashSummary()
         .stateIn(
             scope = viewModelScope,
@@ -105,12 +114,14 @@ class SettingsViewModel @Inject constructor(
 
     private val contentState: StateFlow<SettingsContentState> = combine(
         weekStartDay,
+        reminderSoundEnabled,
         weatherAppBinding,
         calendarSubscriptions,
         trashSummary
-    ) { weekStartDay, weatherAppBinding, calendarSubscriptions, trashSummary ->
+    ) { weekStartDay, reminderSoundEnabled, weatherAppBinding, calendarSubscriptions, trashSummary ->
         SettingsContentState(
             weekStartDay = weekStartDay,
+            reminderSoundEnabled = reminderSoundEnabled,
             weatherAppBinding = weatherAppBinding,
             calendarSubscriptions = calendarSubscriptions,
             trashSummary = trashSummary
@@ -130,6 +141,7 @@ class SettingsViewModel @Inject constructor(
             isImportingBackup = operation.isImportingBackup,
             isSyncingCalendar = operation.isSyncingCalendar,
             weekStartDay = content.weekStartDay,
+            reminderSoundEnabled = content.reminderSoundEnabled,
             weatherAppBinding = content.weatherAppBinding,
             calendarSubscriptions = content.calendarSubscriptions,
             trashSummary = content.trashSummary
@@ -162,6 +174,12 @@ class SettingsViewModel @Inject constructor(
     fun setWeekStartDay(value: Int) {
         viewModelScope.launch {
             settingsFeatureGateway.setWeekStartDay(value)
+        }
+    }
+
+    fun setReminderSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsFeatureGateway.setReminderSoundEnabled(enabled)
         }
     }
 

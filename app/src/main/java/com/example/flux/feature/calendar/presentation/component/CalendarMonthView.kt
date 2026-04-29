@@ -1,6 +1,7 @@
 package com.example.flux.feature.calendar.presentation.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.flux.core.domain.calendar.DailyAggregation
+import com.example.flux.core.util.TimeUtil
 import com.example.flux.feature.calendar.presentation.CalendarMonth
 import com.example.flux.feature.calendar.presentation.HolidayOverrideState
 import com.example.flux.ui.theme.FluxDiaryYellow
@@ -99,6 +102,7 @@ fun CalendarMonthView(
 
                     CalendarGridCell(
                         day = day,
+                        isToday = dateString == TimeUtil.getCurrentDate(),
                         aggregation = aggregation,
                         showDiaries = showDiaries,
                         showTodos = showTodos,
@@ -119,6 +123,7 @@ fun CalendarMonthView(
 @Composable
 fun CalendarGridCell(
     day: Int,
+    isToday: Boolean,
     aggregation: DailyAggregation?,
     showDiaries: Boolean,
     showTodos: Boolean,
@@ -150,18 +155,37 @@ fun CalendarGridCell(
             Text(
                 text = day.toString(),
                 style = MaterialTheme.typography.labelLarge,
-                color = if (renderHoliday) FluxHolidayOrange else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                color = when {
+                    renderHoliday -> FluxHolidayOrange
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .then(
+                        if (isToday) {
+                            Modifier
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        } else {
+                            Modifier
+                        }
+                    )
             )
 
-            if (renderHoliday) {
+            if (isToday) {
                 Text(
-                    text = "\u5047\u671f",
+                    text = "\u4eca\u5929",
                     style = MaterialTheme.typography.labelSmall,
-                    color = FluxHolidayOrange,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
-            } else if (renderManualWorkday) {
+            }
+
+            if (renderManualWorkday) {
                 Text(
                     text = "\u5de5\u4f5c",
                     style = MaterialTheme.typography.labelSmall,

@@ -28,6 +28,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -103,6 +104,10 @@ fun SettingsScreen(
             WeekStartSetting(
                 selected = uiState.weekStartDay,
                 onSelected = viewModel::setWeekStartDay
+            )
+            ReminderSoundSetting(
+                enabled = uiState.reminderSoundEnabled,
+                onEnabledChange = viewModel::setReminderSoundEnabled
             )
             SettingsActionItem(
                 title = "天气 App 绑定",
@@ -218,6 +223,28 @@ fun SettingsScreen(
             }
         )
     }
+}
+
+@Composable
+private fun ReminderSoundSetting(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
+    ListItem(
+        headlineContent = { Text("\u63d0\u9192\u58f0\u97f3") },
+        supportingContent = {
+            Text(if (enabled) "\u5f85\u529e\u548c\u65e5\u5386\u4e8b\u4ef6\u63d0\u9192\u65f6\u53d1\u51fa\u58f0\u97f3" else "\u63d0\u9192\u4ec5\u663e\u793a\u901a\u77e5\uff0c\u4e0d\u4e3b\u52a8\u53d1\u58f0")
+        },
+        trailingContent = {
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
+            )
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onEnabledChange(!enabled) }
+    )
 }
 
 @Composable

@@ -13,6 +13,8 @@ interface SettingsFeatureGateway {
     fun observeTrashSummary(): Flow<TrashSummary>
     fun observeWeekStartDay(): Flow<Int>
     suspend fun setWeekStartDay(value: Int)
+    fun observeReminderSoundEnabled(): Flow<Boolean>
+    suspend fun setReminderSoundEnabled(enabled: Boolean)
     fun observeWeatherAppBinding(): Flow<WeatherAppBinding?>
     suspend fun setWeatherAppBinding(binding: WeatherAppBinding)
     suspend fun clearWeatherAppBinding()

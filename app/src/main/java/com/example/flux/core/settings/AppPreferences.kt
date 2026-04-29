@@ -46,6 +46,25 @@ class AppPreferences @Inject constructor(
         preferences.edit().putInt(KEY_WEEK_START_DAY, normalized).apply()
     }
 
+    fun observeReminderSoundEnabled(): Flow<Boolean> = callbackFlow {
+        trySend(isReminderSoundEnabled())
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_REMINDER_SOUND_ENABLED) {
+                trySend(isReminderSoundEnabled())
+            }
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged()
+
+    fun isReminderSoundEnabled(): Boolean {
+        return preferences.getBoolean(KEY_REMINDER_SOUND_ENABLED, true)
+    }
+
+    fun setReminderSoundEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_REMINDER_SOUND_ENABLED, enabled).apply()
+    }
+
     fun observeWeatherAppBinding(): Flow<WeatherAppBinding?> = callbackFlow {
         trySend(getWeatherAppBinding())
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -92,6 +111,7 @@ class AppPreferences @Inject constructor(
     private companion object {
         const val PREFERENCES_NAME = "flux_app_preferences"
         const val KEY_WEEK_START_DAY = "week_start_day"
+        const val KEY_REMINDER_SOUND_ENABLED = "reminder_sound_enabled"
         const val KEY_WEATHER_APP_PACKAGE = "weather_app_package"
         const val KEY_WEATHER_APP_ACTIVITY = "weather_app_activity"
         const val KEY_WEATHER_APP_DISPLAY_NAME = "weather_app_display_name"

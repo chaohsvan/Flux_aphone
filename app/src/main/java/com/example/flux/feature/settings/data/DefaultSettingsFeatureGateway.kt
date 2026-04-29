@@ -38,6 +38,14 @@ class DefaultSettingsFeatureGateway @Inject constructor(
         appPreferences.setWeekStartDay(value)
     }
 
+    override fun observeReminderSoundEnabled(): Flow<Boolean> {
+        return appPreferences.observeReminderSoundEnabled()
+    }
+
+    override suspend fun setReminderSoundEnabled(enabled: Boolean) {
+        appPreferences.setReminderSoundEnabled(enabled)
+    }
+
     override fun observeWeatherAppBinding(): Flow<WeatherAppBinding?> {
         return appPreferences.observeWeatherAppBinding()
     }
