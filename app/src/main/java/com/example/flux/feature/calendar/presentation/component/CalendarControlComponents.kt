@@ -44,7 +44,6 @@ fun CalendarControlStrip(
         CalendarViewMode.MONTH -> "左右滑动切换月份"
         CalendarViewMode.DAY -> "左右滑动切换日期"
         CalendarViewMode.WEEK -> "左右滑动切换周"
-        CalendarViewMode.QUARTER -> "左右滑动切换季度"
     }
 
     Column(
@@ -91,7 +90,6 @@ fun CalendarModeChips(
         CalendarModeChip("月", viewMode == CalendarViewMode.MONTH, { onViewModeChange(CalendarViewMode.MONTH) }, Modifier.weight(1f))
         CalendarModeChip("日", viewMode == CalendarViewMode.DAY, { onViewModeChange(CalendarViewMode.DAY) }, Modifier.weight(1f))
         CalendarModeChip("周", viewMode == CalendarViewMode.WEEK, { onViewModeChange(CalendarViewMode.WEEK) }, Modifier.weight(1f))
-        CalendarModeChip("季", viewMode == CalendarViewMode.QUARTER, { onViewModeChange(CalendarViewMode.QUARTER) }, Modifier.weight(1f))
     }
 }
 

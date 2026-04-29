@@ -176,6 +176,5 @@ internal data class CalendarPrimaryContentState(
 enum class CalendarViewMode {
     MONTH,
     DAY,
-    WEEK,
-    QUARTER
+    WEEK
 }

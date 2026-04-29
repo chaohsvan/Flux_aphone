@@ -43,10 +43,8 @@ import com.example.flux.feature.calendar.presentation.component.CalendarLayerTog
 import com.example.flux.feature.calendar.presentation.component.CalendarModeChips
 import com.example.flux.feature.calendar.presentation.component.CalendarMonthHistorySheet
 import com.example.flux.feature.calendar.presentation.component.CalendarMonthView
-import com.example.flux.feature.calendar.presentation.component.CalendarQuarterView
 import com.example.flux.feature.calendar.presentation.component.CalendarWeekView
 import com.example.flux.feature.calendar.presentation.component.EventInputSheet
-import com.example.flux.feature.calendar.presentation.component.quarterLabel
 import com.example.flux.feature.calendar.presentation.component.weekRangeLabel
 import com.example.flux.feature.todo.presentation.component.TodoInputSheet
 import kotlin.math.abs
@@ -75,7 +73,6 @@ fun CalendarScreen(
         CalendarViewMode.MONTH -> uiState.currentMonth.label
         CalendarViewMode.DAY -> displayDate
         CalendarViewMode.WEEK -> displayDate.weekRangeLabel(uiState.weekStartDay)
-        CalendarViewMode.QUARTER -> uiState.currentMonth.quarterLabel()
     }
 
     LaunchedEffect(focusDateRequest) {
@@ -164,14 +161,12 @@ fun CalendarScreen(
                                         CalendarViewMode.MONTH -> viewModel.nextMonth()
                                         CalendarViewMode.DAY -> viewModel.shiftSelectedDate(1)
                                         CalendarViewMode.WEEK -> viewModel.shiftSelectedDate(7)
-                                        CalendarViewMode.QUARTER -> viewModel.shiftCurrentMonth(3)
                                     }
 
                                     dragDistance > 0 -> when (viewMode) {
                                         CalendarViewMode.MONTH -> viewModel.previousMonth()
                                         CalendarViewMode.DAY -> viewModel.shiftSelectedDate(-1)
                                         CalendarViewMode.WEEK -> viewModel.shiftSelectedDate(-7)
-                                        CalendarViewMode.QUARTER -> viewModel.shiftCurrentMonth(-3)
                                     }
                                 }
                                 dragDistance = 0f
@@ -240,18 +235,6 @@ fun CalendarScreen(
                         }
                     )
 
-                    CalendarViewMode.QUARTER -> CalendarQuarterView(
-                        currentMonth = uiState.currentMonth,
-                        aggregatedData = uiState.aggregatedData,
-                        showEvents = uiState.showEvents,
-                        showHolidays = uiState.showHolidays,
-                        weekStartDay = uiState.weekStartDay,
-                        holidayOverrides = uiState.holidayOverrides,
-                        onDateClick = { date ->
-                            viewModel.selectDate(date)
-                            viewMode = CalendarViewMode.DAY
-                        }
-                    )
                 }
             }
 

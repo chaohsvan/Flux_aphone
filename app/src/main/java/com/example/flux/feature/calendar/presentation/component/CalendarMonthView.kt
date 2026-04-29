@@ -208,9 +208,6 @@ fun CalendarGridCell(
                     if (showTodos && aggregation.pendingTodosCount > 0) {
                         CalendarContentBar(color = FluxTodoRed)
                     }
-                    if (showTodos && aggregation.completedTodosCount > 0) {
-                        CalendarContentBar(color = Color.Gray)
-                    }
                     if (showEvents && aggregation.eventColors.isNotEmpty()) {
                         CalendarContentBar(color = Color(android.graphics.Color.parseColor(aggregation.eventColors.first())))
                     }

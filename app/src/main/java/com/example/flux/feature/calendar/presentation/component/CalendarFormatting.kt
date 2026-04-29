@@ -5,7 +5,6 @@ import com.example.flux.core.database.entity.CalendarEventEntity
 import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.domain.calendar.DailyAggregation
 import com.example.flux.core.util.RecurrenceUtil
-import com.example.flux.feature.calendar.presentation.CalendarMonth
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -105,12 +104,6 @@ fun String.weekRangeLabel(weekStartDay: Int = Calendar.SUNDAY): String {
     return if (start.isBlank() || end.isBlank()) this else "$start | $end"
 }
 
-fun CalendarMonth.quarterLabel(): String {
-    val firstQuarterMonth = ((month - 1) / 3) * 3 + 1
-    val lastQuarterMonth = firstQuarterMonth + 2
-    return "${year}年${firstQuarterMonth}月-${lastQuarterMonth}月"
-}
-
 fun String.isWeekendDate(): Boolean {
     val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val date = runCatching { formatter.parse(this) }.getOrNull() ?: return false
@@ -119,17 +112,11 @@ fun String.isWeekendDate(): Boolean {
     return dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY
 }
 
-fun CalendarMonth.quarterMonths(): List<CalendarMonth> {
-    val firstQuarterMonth = ((month - 1) / 3) * 3 + 1
-    return List(3) { offset -> CalendarMonth(year, firstQuarterMonth + offset) }
-}
-
 fun DailyAggregation?.weekSummary(showEvents: Boolean): String {
     if (this == null) return "无安排"
     val parts = buildList {
         if (showEvents && eventColors.isNotEmpty()) add("${eventColors.size} 个事件")
         if (pendingTodosCount > 0) add("$pendingTodosCount 个待办")
-        if (completedTodosCount > 0) add("$completedTodosCount 个已完成")
         if (hasDiary) add("有日记")
         if (deletedCount > 0) add("$deletedCount 条已删")
     }

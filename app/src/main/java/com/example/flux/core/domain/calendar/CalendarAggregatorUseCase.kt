@@ -51,13 +51,10 @@ class CalendarAggregatorUseCase @Inject constructor(
             }
             
             todos.forEach { todo ->
+                if (todo.status == "completed") return@forEach
                 todo.calendarOccurrenceDates(range.first, range.second).forEach { date ->
                     val current = result[date] ?: DailyAggregation(date, false, 0, 0, emptyList())
-                    if (todo.status == "completed") {
-                        result[date] = current.copy(completedTodosCount = current.completedTodosCount + 1)
-                    } else {
-                        result[date] = current.copy(pendingTodosCount = current.pendingTodosCount + 1)
-                    }
+                    result[date] = current.copy(pendingTodosCount = current.pendingTodosCount + 1)
                 }
             }
             
