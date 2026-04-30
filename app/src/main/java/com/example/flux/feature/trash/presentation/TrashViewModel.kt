@@ -79,4 +79,22 @@ class TrashViewModel @Inject constructor(
             trashFeatureGateway.restoreEvent(id)
         }
     }
+
+    fun permanentlyDeleteDiary(id: String) {
+        viewModelScope.launch {
+            trashFeatureGateway.permanentlyDeleteDiary(id)
+        }
+    }
+
+    fun permanentlyDeleteTodo(id: String) {
+        viewModelScope.launch {
+            trashFeatureGateway.permanentlyDeleteTodo(id)
+        }
+    }
+
+    fun permanentlyDeleteEvent(id: String) {
+        viewModelScope.launch {
+            trashFeatureGateway.permanentlyDeleteEvent(id)
+        }
+    }
 }

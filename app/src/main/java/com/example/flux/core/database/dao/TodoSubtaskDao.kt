@@ -44,4 +44,7 @@ interface TodoSubtaskDao {
 
     @Query("UPDATE todo_subtasks SET deleted_at = :deletedAt, updated_at = :deletedAt WHERE id = :id")
     suspend fun softDeleteSubtask(id: String, deletedAt: String)
+
+    @Query("DELETE FROM todo_subtasks WHERE todo_id = :todoId")
+    suspend fun permanentlyDeleteSubtasksForTodo(todoId: String)
 }

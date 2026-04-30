@@ -113,6 +113,12 @@ interface DiaryDao {
     @Query("UPDATE diary_tag_links SET deleted_at = :deletedAt WHERE diary_id = :diaryId AND deleted_at IS NULL")
     suspend fun softDeleteDiaryTagLinks(diaryId: String, deletedAt: String)
 
+    @Query("DELETE FROM diary_tag_links WHERE diary_id = :diaryId")
+    suspend fun permanentlyDeleteDiaryTagLinks(diaryId: String)
+
+    @Query("DELETE FROM diaries WHERE id = :id")
+    suspend fun permanentlyDeleteDiary(id: String)
+
     @SkipQueryVerification
     @Query("DELETE FROM diary_search_index WHERE diary_id = :diaryId")
     suspend fun deleteDiaryFts(diaryId: String)

@@ -3,11 +3,13 @@ package com.example.flux.feature.trash.presentation
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -117,106 +119,110 @@ fun AttachmentManagerScreen(
             return@Scaffold
         }
 
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            AttachmentSummary(
-                totalCount = attachments.size,
-                filteredCount = filteredAttachments.size,
-                referencedCount = referencedCount,
-                unreferencedCount = unreferencedCount,
-                totalSizeBytes = attachments.sumOf { it.sizeBytes },
-                referencedSizeBytes = referencedSizeBytes,
-                unreferencedSizeBytes = unreferencedSizeBytes,
-                freedSpaceBytes = uiState.freedSpaceBytes
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-            AttachmentKindChips(selected = filterState.kind, onSelected = viewModel::setKindFilter)
-            OutlinedTextField(
-                value = filterState.query,
-                onValueChange = viewModel::updateSearchQuery,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                singleLine = true,
-                placeholder = { Text("搜索附件名、路径、哈希或引用内容") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索") }
-            )
-            AttachmentReferenceChips(selected = filterState.reference, onSelected = viewModel::setReferenceFilter)
-            AttachmentSizeChips(selected = filterState.size, onSelected = viewModel::setSizeFilter)
-            AttachmentDateChips(selected = filterState.date, onSelected = viewModel::setDateFilter)
-            AttachmentSortChips(selected = filterState.sort, onSelected = viewModel::setSortMode)
-
-            Spacer(modifier = Modifier.height(12.dp))
-            AttachmentSelectionActions(
-                selectionMode = selectionMode,
-                selectedCount = selectedPaths.size,
-                hasFilteredItems = filteredAttachments.isNotEmpty(),
-                onToggleSelectionMode = viewModel::toggleSelectionMode,
-                onSelectAll = viewModel::selectAllFiltered,
-                onClearSelection = viewModel::clearSelection,
-                onDeleteSelection = { pendingDeleteSelected = true }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = {
-                    viewModel.clean(context) { freed ->
-                        val message = if (freed > 0) {
-                            "已清理未引用附件，释放 ${formatSize(freed)}"
-                        } else {
-                            "没有可清理的未引用附件"
-                        }
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                    }
-                },
-                enabled = unreferencedCount > 0,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = null)
-                Spacer(modifier = Modifier.height(0.dp))
-                Text("清理未引用附件")
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            if (filteredAttachments.isEmpty()) {
-                Text(
-                    text = if (attachments.isEmpty()) "暂无本地附件" else "当前筛选下没有附件",
-                    style = MaterialTheme.typography.bodyLarge
+            item {
+                AttachmentSummary(
+                    totalCount = attachments.size,
+                    filteredCount = filteredAttachments.size,
+                    referencedCount = referencedCount,
+                    unreferencedCount = unreferencedCount,
+                    totalSizeBytes = attachments.sumOf { it.sizeBytes },
+                    referencedSizeBytes = referencedSizeBytes,
+                    unreferencedSizeBytes = unreferencedSizeBytes,
+                    freedSpaceBytes = uiState.freedSpaceBytes
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                AttachmentKindChips(selected = filterState.kind, onSelected = viewModel::setKindFilter)
+                OutlinedTextField(
+                    value = filterState.query,
+                    onValueChange = viewModel::updateSearchQuery,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    singleLine = true,
+                    placeholder = { Text("搜索附件名、路径、哈希或引用内容") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索") }
+                )
+                AttachmentReferenceChips(selected = filterState.reference, onSelected = viewModel::setReferenceFilter)
+                AttachmentSizeChips(selected = filterState.size, onSelected = viewModel::setSizeFilter)
+                AttachmentDateChips(selected = filterState.date, onSelected = viewModel::setDateFilter)
+                AttachmentSortChips(selected = filterState.sort, onSelected = viewModel::setSortMode)
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row {
+                    AttachmentSelectionActions(
+                        selectionMode = selectionMode,
+                        selectedCount = selectedPaths.size,
+                        hasFilteredItems = filteredAttachments.isNotEmpty(),
+                        onToggleSelectionMode = viewModel::toggleSelectionMode,
+                        onSelectAll = viewModel::selectAllFiltered,
+                        onClearSelection = viewModel::clearSelection,
+                        onDeleteSelection = { pendingDeleteSelected = true }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        viewModel.clean(context) { freed ->
+                            val message = if (freed > 0) {
+                                "已清理未引用附件，释放 ${formatSize(freed)}"
+                            } else {
+                                "没有可清理的未引用附件"
+                            }
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = unreferencedCount > 0,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("清理未引用附件")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (filteredAttachments.isEmpty()) {
+                item {
+                    Text(
+                        text = if (attachments.isEmpty()) "暂无本地附件" else "当前筛选下没有附件",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredAttachments, key = { it.relativePath }) { attachment ->
-                        AttachmentRow(
-                            attachment = attachment,
-                            selectionMode = selectionMode,
-                            selected = attachment.relativePath in selectedPaths,
-                            onToggleSelection = { viewModel.toggleSelection(attachment.relativePath) },
-                            onOpenDiary = onOpenDiary,
-                            onOpenAttachment = {
-                                if (!AttachmentOpener.open(context, attachment.file)) {
-                                    Toast.makeText(context, "无法打开附件", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            onShowReferences = { referenceSheetAttachment = attachment },
-                            onDelete = {
-                                if (attachment.isReferenced) {
-                                    pendingDeleteAttachment = attachment
-                                } else {
-                                    viewModel.deleteOne(attachment) { freed ->
-                                        if (freed > 0) {
-                                            Toast.makeText(context, "已删除未引用附件", Toast.LENGTH_SHORT).show()
-                                        }
+                items(filteredAttachments, key = { it.relativePath }) { attachment ->
+                    AttachmentRow(
+                        attachment = attachment,
+                        selectionMode = selectionMode,
+                        selected = attachment.relativePath in selectedPaths,
+                        onToggleSelection = { viewModel.toggleSelection(attachment.relativePath) },
+                        onOpenDiary = onOpenDiary,
+                        onOpenAttachment = {
+                            if (!AttachmentOpener.open(context, attachment.file)) {
+                                Toast.makeText(context, "无法打开附件", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onShowReferences = { referenceSheetAttachment = attachment },
+                        onDelete = {
+                            if (attachment.isReferenced) {
+                                pendingDeleteAttachment = attachment
+                            } else {
+                                viewModel.deleteOne(attachment) { freed ->
+                                    if (freed > 0) {
+                                        Toast.makeText(context, "已删除未引用附件", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             }
-                        )
-                        HorizontalDivider()
-                    }
+                        }
+                    )
+                    HorizontalDivider()
                 }
             }
         }

@@ -69,6 +69,8 @@ fun SettingsScreen(
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var incrementalImport by remember { mutableStateOf(false) }
     var showSyncSettings by remember { mutableStateOf(false) }
+    var showCloudRestoreConfirm by remember { mutableStateOf(false) }
+    var incrementalCloudRestore by remember { mutableStateOf(false) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip"),
@@ -184,6 +186,38 @@ fun SettingsScreen(
                 enabled = !uiState.isImportingBackup,
                 onClick = { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
             )
+            SettingsActionItem(
+                title = "\u5907\u4efd\u5230\u4e91\u7aef WebDAV",
+                subtitle = if (uiState.isExportingBackup) {
+                    "\u6b63\u5728\u4e0a\u4f20\u4e91\u5907\u4efd..."
+                } else {
+                    "\u4f7f\u7528\u72ec\u7acb\u76ee\u5f55 FluxBackups\uff0c\u4e0d\u53c2\u4e0e\u591a\u7aef\u540c\u6b65"
+                },
+                icon = Icons.Default.Share,
+                tint = MaterialTheme.colorScheme.primary,
+                enabled = !uiState.isExportingBackup,
+                onClick = {
+                    viewModel.backupToCloud { success, message ->
+                        Toast.makeText(
+                            context,
+                            message,
+                            if (success) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            )
+            SettingsActionItem(
+                title = "\u4ece\u4e91\u7aef\u6062\u590d\u5907\u4efd",
+                subtitle = if (uiState.isImportingBackup) {
+                    "\u6b63\u5728\u4ece\u4e91\u7aef\u6062\u590d..."
+                } else {
+                    "\u6062\u590d FluxBackups \u4e2d\u7684\u6700\u65b0\u5907\u4efd"
+                },
+                icon = Icons.Default.Refresh,
+                tint = MaterialTheme.colorScheme.primary,
+                enabled = !uiState.isImportingBackup,
+                onClick = { showCloudRestoreConfirm = true }
+            )
         }
     }
 
@@ -270,6 +304,62 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { pendingImportUri = null }) {
                     Text("取消")
+                }
+            }
+        )
+    }
+
+    if (showCloudRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCloudRestoreConfirm = false },
+            title = { Text("\u4ece\u4e91\u7aef\u6062\u590d\u5907\u4efd") },
+            text = {
+                Column {
+                    Text(
+                        if (incrementalCloudRestore) {
+                            "\u5c06\u4e91\u7aef\u6700\u65b0\u5907\u4efd\u589e\u91cf\u5408\u5e76\u5230\u672c\u673a\uff0c\u672c\u673a\u73b0\u6709\u6570\u636e\u4f1a\u5148\u4fdd\u7559\u526f\u672c\u3002"
+                        } else {
+                            "\u5c06\u7528\u4e91\u7aef\u6700\u65b0\u5907\u4efd\u66ff\u6362\u672c\u673a\u6570\u636e\uff0c\u672c\u673a\u73b0\u6709\u6570\u636e\u4f1a\u5148\u4fdd\u7559\u526f\u672c\u3002"
+                        }
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .clickable { incrementalCloudRestore = !incrementalCloudRestore },
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Checkbox(
+                            checked = incrementalCloudRestore,
+                            onCheckedChange = { incrementalCloudRestore = it }
+                        )
+                        Text(
+                            text = "\u53ea\u8fdb\u884c\u589e\u91cf\u6062\u590d",
+                            modifier = Modifier.padding(top = 12.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isImportingBackup,
+                    onClick = {
+                        showCloudRestoreConfirm = false
+                        viewModel.restoreFromCloud(incrementalCloudRestore) { success, message ->
+                            Toast.makeText(
+                                context,
+                                message,
+                                if (success) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                ) {
+                    Text("\u6062\u590d")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCloudRestoreConfirm = false }) {
+                    Text("\u53d6\u6d88")
                 }
             }
         )

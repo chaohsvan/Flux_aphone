@@ -97,6 +97,12 @@ class DiaryRepository @Inject constructor(
         diaryDao.deleteDiaryFts(id)
     }
 
+    suspend fun permanentlyDeleteDiary(id: String) {
+        diaryDao.deleteDiaryFts(id)
+        diaryDao.permanentlyDeleteDiaryTagLinks(id)
+        diaryDao.permanentlyDeleteDiary(id)
+    }
+
     private suspend fun updateDiaryTags(diaryId: String, tagNames: List<String>) {
         val normalizedTags = normalizeTags(tagNames)
         val now = TimeUtil.getCurrentIsoTime()

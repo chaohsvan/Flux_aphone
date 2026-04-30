@@ -38,4 +38,7 @@ interface EventDao {
 
     @Query("UPDATE calendar_events SET deleted_at = NULL, updated_at = :timestamp WHERE id = :id")
     suspend fun restoreEvent(id: String, timestamp: String)
+
+    @Query("DELETE FROM calendar_events WHERE id = :id")
+    suspend fun permanentlyDeleteEvent(id: String)
 }

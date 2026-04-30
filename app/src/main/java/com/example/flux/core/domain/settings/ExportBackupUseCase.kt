@@ -5,6 +5,7 @@ import android.net.Uri
 import com.example.flux.core.database.FluxDatabase
 import com.example.flux.core.util.DataPaths
 import java.io.File
+import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
@@ -15,13 +16,26 @@ class ExportBackupUseCase @Inject constructor(
     private val database: FluxDatabase
 ) {
     suspend operator fun invoke(context: Context, destUri: Uri) = withContext(Dispatchers.IO) {
+        exportToStream(context) {
+            context.contentResolver.openOutputStream(destUri) ?: error("Unable to create backup file")
+        }
+    }
+
+    suspend fun toFile(context: Context, destFile: File) = withContext(Dispatchers.IO) {
+        exportToStream(context) {
+            destFile.parentFile?.mkdirs()
+            destFile.outputStream()
+        }
+    }
+
+    private fun exportToStream(context: Context, openOutput: () -> OutputStream) {
         database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { }
 
-        context.contentResolver.openOutputStream(destUri)?.use { output ->
+        openOutput().use { output ->
             ZipOutputStream(output.buffered()).use { zip ->
                 zip.addDirectory(DataPaths.dataDir(context), DataPaths.DATA_DIR_NAME)
             }
-        } ?: error("Unable to create backup file")
+        }
     }
 
     private fun ZipOutputStream.addFile(file: File, entryName: String) {

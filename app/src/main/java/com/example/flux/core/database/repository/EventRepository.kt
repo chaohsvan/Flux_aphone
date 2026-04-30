@@ -69,4 +69,9 @@ class EventRepository @Inject constructor(
         val timestamp = TimeUtil.getCurrentIsoTime()
         eventDao.restoreEvent(id, timestamp)
     }
+
+    suspend fun permanentlyDeleteEvent(id: String) {
+        reminderScheduler.cancelEvent(id)
+        eventDao.permanentlyDeleteEvent(id)
+    }
 }

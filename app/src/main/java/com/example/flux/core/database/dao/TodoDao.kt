@@ -62,4 +62,7 @@ interface TodoDao {
 
     @Query("UPDATE todos SET project_id = NULL, updated_at = :updatedAt, version = version + 1 WHERE project_id = :projectId")
     suspend fun clearProject(projectId: String, updatedAt: String)
+
+    @Query("DELETE FROM todos WHERE id = :id")
+    suspend fun permanentlyDeleteTodo(id: String)
 }

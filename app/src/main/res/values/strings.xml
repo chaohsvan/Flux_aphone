@@ -4,4 +4,6 @@
     <string name="markdown_open_attachment_failed">无法打开附件</string>
     <string name="markdown_attachment_audio">音频</string>
     <string name="markdown_attachment_file">文件</string>
+    <string name="widget_todo_description">Flux Todo widget</string>
+    <string name="widget_month_description">Flux month calendar widget</string>
 </resources>

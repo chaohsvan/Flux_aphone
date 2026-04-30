@@ -153,4 +153,11 @@ class TodoRepository @Inject constructor(
         reminderScheduler.cancelTodo(id)
         addHistory(id, "delete", "移入回收站")
     }
+
+    suspend fun permanentlyDeleteTodo(id: String) {
+        reminderScheduler.cancelTodo(id)
+        todoSubtaskDao.permanentlyDeleteSubtasksForTodo(id)
+        todoHistoryDao.permanentlyDeleteHistoryForTodo(id)
+        todoDao.permanentlyDeleteTodo(id)
+    }
 }

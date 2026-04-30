@@ -13,4 +13,8 @@ interface TrashFeatureGateway {
     suspend fun restoreDiary(id: String)
     suspend fun restoreTodo(id: String)
     suspend fun restoreEvent(id: String)
+
+    suspend fun permanentlyDeleteDiary(id: String)
+    suspend fun permanentlyDeleteTodo(id: String)
+    suspend fun permanentlyDeleteEvent(id: String)
 }

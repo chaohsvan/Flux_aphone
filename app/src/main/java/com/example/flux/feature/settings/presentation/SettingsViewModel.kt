@@ -213,6 +213,31 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun backupToCloud(onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _isExportingBackup.value = true
+            val result = runCatching { settingsFeatureGateway.backupToCloud() }
+            _isExportingBackup.value = false
+            result.fold(
+                onSuccess = { onDone(true, it.message) },
+                onFailure = { throwable -> onDone(false, throwable.message ?: "\u4e91\u5907\u4efd\u5931\u8d25") }
+            )
+        }
+    }
+
+    fun restoreFromCloud(incremental: Boolean, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _isImportingBackup.value = true
+            val mode = if (incremental) ImportBackupMode.Merge else ImportBackupMode.Replace
+            val result = runCatching { settingsFeatureGateway.restoreFromCloud(mode) }
+            _isImportingBackup.value = false
+            result.fold(
+                onSuccess = { onDone(true, it.message) },
+                onFailure = { throwable -> onDone(false, throwable.message ?: "\u4e91\u6062\u590d\u5931\u8d25") }
+            )
+        }
+    }
+
     fun setWeekStartDay(value: Int) {
         viewModelScope.launch {
             settingsFeatureGateway.setWeekStartDay(value)

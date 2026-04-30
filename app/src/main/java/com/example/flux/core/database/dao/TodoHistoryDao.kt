@@ -14,4 +14,7 @@ interface TodoHistoryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(history: TodoHistoryEntity)
+
+    @Query("DELETE FROM todo_history WHERE todo_id = :todoId")
+    suspend fun permanentlyDeleteHistoryForTodo(todoId: String)
 }

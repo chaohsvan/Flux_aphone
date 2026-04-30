@@ -76,10 +76,6 @@ class FluxSyncManager @Inject constructor(
         var databaseMerged = false
 
         when {
-            remoteManifest == null -> {
-                manifest = uploadDatabaseSnapshot(client, root, deviceId, manifest)
-                databaseUploaded = true
-            }
             localChanged && remoteChanged -> {
                 downloadDatabaseSnapshot(client, root, remoteManifest, ImportBackupMode.Merge)
                 databaseMerged = true
@@ -87,7 +83,11 @@ class FluxSyncManager @Inject constructor(
                 databaseUploaded = true
             }
             localChanged -> {
-                manifest = uploadDatabaseSnapshot(client, root, deviceId, remoteManifest)
+                manifest = uploadDatabaseSnapshot(client, root, deviceId, manifest)
+                databaseUploaded = true
+            }
+            remoteManifest == null -> {
+                manifest = uploadDatabaseSnapshot(client, root, deviceId, manifest)
                 databaseUploaded = true
             }
             remoteChanged -> {
@@ -168,14 +168,35 @@ class FluxSyncManager @Inject constructor(
         manifest: SyncManifest,
         mode: ImportBackupMode
     ) {
-        val remotePath = if (manifest.latestDbPath.isBlank()) "${root}_db_latest.zip" else manifest.latestDbPath
+        val latestPath = if (manifest.latestDbPath.isBlank()) "${root}_db_latest.zip" else manifest.latestDbPath
+        val historyPath = "${root}_db_history_${manifest.latestDbSnapshotId}.zip"
+        val candidates = listOf(latestPath, historyPath)
+            .filter { it.isNotBlank() }
+            .distinct()
         val target = File(context.cacheDir, "flux_remote_${TimeUtil.generateUuid()}.zip")
         try {
-            client.downloadFile(remotePath, target)
-            if (manifest.latestDbHash.isNotBlank()) {
-                require(HashUtil.sha256(target) == manifest.latestDbHash) { "Remote database snapshot checksum mismatch" }
+            var lastMismatch: SnapshotChecksumMismatchException? = null
+            var imported = false
+            candidates.forEach { remotePath ->
+                if (imported) return@forEach
+                client.downloadFile(remotePath, target)
+                val actualHash = HashUtil.sha256(target)
+                if (manifest.latestDbHash.isNotBlank() && actualHash != manifest.latestDbHash) {
+                    lastMismatch = SnapshotChecksumMismatchException(
+                        path = remotePath,
+                        expected = manifest.latestDbHash,
+                        actual = actualHash
+                    )
+                    stateStore.appendLog("WARN", "远端数据库快照校验失败，尝试备用文件：$remotePath")
+                    target.delete()
+                } else {
+                    snapshotManager.importSnapshot(context, target, mode)
+                    imported = true
+                }
             }
-            snapshotManager.importSnapshot(context, target, mode)
+            if (!imported) {
+                throw lastMismatch ?: IllegalStateException("Remote database snapshot is unavailable")
+            }
         } finally {
             target.delete()
         }
@@ -272,6 +293,10 @@ class FluxSyncManager @Inject constructor(
     }
 
     private fun webDavFailureMessage(remoteDir: String, throwable: Throwable): String {
+        val checksumMismatch = throwable as? SnapshotChecksumMismatchException
+        if (checksumMismatch != null) {
+            return "远端数据库快照校验失败，路径：${checksumMismatch.path}"
+        }
         val webDavError = throwable as? WebDavHttpException
         if (webDavError != null) {
             return when (webDavError.statusCode) {
@@ -308,3 +333,9 @@ class FluxSyncManager @Inject constructor(
         const val HISTORY_KEEP_COUNT = 10
     }
 }
+
+private class SnapshotChecksumMismatchException(
+    val path: String,
+    val expected: String,
+    val actual: String
+) : IllegalStateException("Remote database snapshot checksum mismatch at $path")

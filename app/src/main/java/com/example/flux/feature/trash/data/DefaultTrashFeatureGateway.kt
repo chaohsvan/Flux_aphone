@@ -39,4 +39,16 @@ class DefaultTrashFeatureGateway @Inject constructor(
     override suspend fun restoreEvent(id: String) {
         restoreEventUseCase(id)
     }
+
+    override suspend fun permanentlyDeleteDiary(id: String) {
+        diaryRepository.permanentlyDeleteDiary(id)
+    }
+
+    override suspend fun permanentlyDeleteTodo(id: String) {
+        todoRepository.permanentlyDeleteTodo(id)
+    }
+
+    override suspend fun permanentlyDeleteEvent(id: String) {
+        eventRepository.permanentlyDeleteEvent(id)
+    }
 }

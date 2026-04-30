@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -28,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +50,7 @@ fun TrashScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var pendingDelete by remember { mutableStateOf<PendingTrashDelete?>(null) }
 
     val tabs = listOf(
         "\u65e5\u8bb0 ${uiState.deletedDiaries.size}",
@@ -114,6 +117,13 @@ fun TrashScreen(
                         onRestore = {
                             viewModel.restoreDiary(diary.id)
                             Toast.makeText(context, "\u5df2\u6062\u590d\u65e5\u8bb0", Toast.LENGTH_SHORT).show()
+                        },
+                        onPermanentDelete = {
+                            pendingDelete = PendingTrashDelete(
+                                type = TrashItemType.Diary,
+                                id = diary.id,
+                                title = diary.title.ifBlank { diary.entryDate }
+                            )
                         }
                     )
                 }
@@ -131,6 +141,13 @@ fun TrashScreen(
                         onRestore = {
                             viewModel.restoreTodo(todo.id)
                             Toast.makeText(context, "\u5df2\u6062\u590d\u5f85\u529e", Toast.LENGTH_SHORT).show()
+                        },
+                        onPermanentDelete = {
+                            pendingDelete = PendingTrashDelete(
+                                type = TrashItemType.Todo,
+                                id = todo.id,
+                                title = todo.title
+                            )
                         }
                     )
                 }
@@ -148,11 +165,48 @@ fun TrashScreen(
                         onRestore = {
                             viewModel.restoreEvent(event.id)
                             Toast.makeText(context, "\u5df2\u6062\u590d\u4e8b\u4ef6", Toast.LENGTH_SHORT).show()
+                        },
+                        onPermanentDelete = {
+                            pendingDelete = PendingTrashDelete(
+                                type = TrashItemType.Event,
+                                id = event.id,
+                                title = event.title
+                            )
                         }
                     )
                 }
             }
         }
+    }
+
+    pendingDelete?.let { item ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("\u5f7b\u5e95\u5220\u9664") },
+            text = {
+                Text("\u786e\u5b9a\u8981\u5f7b\u5e95\u5220\u9664\u201c${item.title}\u201d\u5417\uff1f\u6b64\u64cd\u4f5c\u65e0\u6cd5\u6062\u590d\u3002")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        when (item.type) {
+                            TrashItemType.Diary -> viewModel.permanentlyDeleteDiary(item.id)
+                            TrashItemType.Todo -> viewModel.permanentlyDeleteTodo(item.id)
+                            TrashItemType.Event -> viewModel.permanentlyDeleteEvent(item.id)
+                        }
+                        pendingDelete = null
+                        Toast.makeText(context, "\u5df2\u5f7b\u5e95\u5220\u9664", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("\u5220\u9664", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("\u53d6\u6d88")
+                }
+            }
+        )
     }
 }
 
@@ -221,7 +275,8 @@ private fun <T> TrashList(
 private fun TrashEntryRow(
     title: String,
     subtitle: String,
-    onRestore: () -> Unit
+    onRestore: () -> Unit,
+    onPermanentDelete: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -243,8 +298,25 @@ private fun TrashEntryRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        TextButton(onClick = onRestore) {
-            Text("\u6062\u590d")
+        Row {
+            TextButton(onClick = onPermanentDelete) {
+                Text("\u5f7b\u5e95\u5220\u9664", color = MaterialTheme.colorScheme.error)
+            }
+            TextButton(onClick = onRestore) {
+                Text("\u6062\u590d")
+            }
         }
     }
+}
+
+private data class PendingTrashDelete(
+    val type: TrashItemType,
+    val id: String,
+    val title: String
+)
+
+private enum class TrashItemType {
+    Diary,
+    Todo,
+    Event
 }
