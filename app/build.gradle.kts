@@ -76,6 +76,10 @@ dependencies {
 
     // Background sync
     implementation(libs.androidx.work.runtime.ktx)
+
+    // WebDAV
+    implementation(libs.okhttp)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -5,12 +5,15 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.DateRange
@@ -26,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -44,6 +48,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.flux.core.sync.SyncStatus
+import com.example.flux.core.sync.WebDavSyncConfig
+import com.example.flux.core.sync.JIANGUOYUN_WEBDAV_URL
 import com.example.flux.core.util.TimeUtil
 import java.util.Calendar
 
@@ -61,6 +68,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var incrementalImport by remember { mutableStateOf(false) }
+    var showSyncSettings by remember { mutableStateOf(false) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip"),
@@ -99,6 +107,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp)
         ) {
             WeekStartSetting(
@@ -108,6 +117,19 @@ fun SettingsScreen(
             ReminderSoundSetting(
                 enabled = uiState.reminderSoundEnabled,
                 onEnabledChange = viewModel::setReminderSoundEnabled
+            )
+            SettingsActionItem(
+                title = "\u591a\u7aef\u540c\u6b65",
+                subtitle = when {
+                    uiState.isSyncingData -> "\u6b63\u5728\u540c\u6b65..."
+                    uiState.syncStatus.lastError.isNotBlank() -> "\u4e0a\u6b21\u5931\u8d25\uff1a${uiState.syncStatus.lastError}"
+                    uiState.syncStatus.lastSyncAt.isNotBlank() -> "\u4e0a\u6b21\u540c\u6b65\uff1a${uiState.syncStatus.lastSyncAt}"
+                    uiState.syncConfig.enabled -> "\u5df2\u5f00\u542f\uff0c\u5c1a\u672a\u540c\u6b65"
+                    else -> "\u901a\u8fc7 WebDAV \u540c\u6b65\u6570\u636e\u5e93\u5feb\u7167\u548c\u9644\u4ef6"
+                },
+                icon = Icons.Default.Refresh,
+                tint = MaterialTheme.colorScheme.primary,
+                onClick = { showSyncSettings = true }
             )
             SettingsActionItem(
                 title = "天气 App 绑定",
@@ -163,6 +185,31 @@ fun SettingsScreen(
                 onClick = { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
             )
         }
+    }
+
+    if (showSyncSettings) {
+        SyncSettingsDialog(
+            config = uiState.syncConfig,
+            status = uiState.syncStatus,
+            isSyncing = uiState.isSyncingData,
+            onDismiss = { showSyncSettings = false },
+            onSave = { config ->
+                viewModel.saveSyncConfig(config) { success, message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    if (success) showSyncSettings = false
+                }
+            },
+            onTest = { config ->
+                viewModel.testSyncConnection(config) { _, message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSyncNow = {
+                viewModel.syncNow { _, message ->
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
+            }
+        )
     }
 
     pendingImportUri?.let { uri ->
@@ -227,6 +274,132 @@ fun SettingsScreen(
             }
         )
     }
+}
+
+@Composable
+private fun SyncSettingsDialog(
+    config: WebDavSyncConfig,
+    status: SyncStatus,
+    isSyncing: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (WebDavSyncConfig) -> Unit,
+    onTest: (WebDavSyncConfig) -> Unit,
+    onSyncNow: () -> Unit
+) {
+    var enabled by remember(config) { mutableStateOf(config.enabled) }
+    var username by remember(config) { mutableStateOf(config.username) }
+    var password by remember(config) { mutableStateOf(config.password) }
+    var remoteDir by remember(config) { mutableStateOf(config.remoteDir) }
+
+    fun currentConfig(): WebDavSyncConfig {
+        return WebDavSyncConfig(
+            enabled = enabled,
+            baseUrl = JIANGUOYUN_WEBDAV_URL,
+            username = username,
+            password = password,
+            remoteDir = remoteDir
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("\u591a\u7aef\u540c\u6b65") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { enabled = !enabled },
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = { enabled = it }
+                    )
+                    Text(
+                        text = if (enabled) "\u5df2\u5f00\u542f" else "\u672a\u5f00\u542f",
+                        modifier = Modifier.padding(start = 12.dp, top = 12.dp)
+                    )
+                }
+                Text(
+                    text = "WebDAV \u5730\u5740\uff1a$JIANGUOYUN_WEBDAV_URL",
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("\u8d26\u53f7") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("\u5e94\u7528\u5bc6\u7801") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = remoteDir,
+                    onValueChange = { remoteDir = it },
+                    label = { Text("\u540c\u6b65\u76ee\u5f55") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = when {
+                        isSyncing -> "\u72b6\u6001\uff1a\u6b63\u5728\u540c\u6b65"
+                        status.lastError.isNotBlank() -> "\u72b6\u6001\uff1a${status.lastError}"
+                        status.lastMessage.isNotBlank() -> "\u72b6\u6001\uff1a${status.lastMessage}"
+                        else -> "\u72b6\u6001\uff1a\u5c1a\u672a\u540c\u6b65"
+                    },
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                if (status.lastSyncAt.isNotBlank()) {
+                    Text(
+                        text = "\u6700\u540e\u540c\u6b65\uff1a${status.lastSyncAt}",
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                status.logs.take(6).forEach { log ->
+                    Text(
+                        text = "${log.time} ${log.level}: ${log.message}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isSyncing,
+                onClick = { onSave(currentConfig()) }
+            ) {
+                Text("\u4fdd\u5b58")
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(
+                    enabled = !isSyncing,
+                    onClick = { onTest(currentConfig()) }
+                ) {
+                    Text("\u6d4b\u8bd5")
+                }
+                TextButton(
+                    enabled = !isSyncing,
+                    onClick = onSyncNow
+                ) {
+                    Text("\u7acb\u5373\u540c\u6b65")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("\u5173\u95ed")
+                }
+            }
+        }
+    )
 }
 
 @Composable

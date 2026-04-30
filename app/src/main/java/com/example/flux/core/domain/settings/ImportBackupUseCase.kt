@@ -6,6 +6,7 @@ import com.example.flux.core.database.FluxDatabase
 import com.example.flux.core.util.DataPaths
 import com.example.flux.core.util.TimeUtil
 import java.io.File
+import java.io.InputStream
 import java.util.zip.ZipInputStream
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -19,13 +20,33 @@ class ImportBackupUseCase @Inject constructor(
         sourceUri: Uri,
         mode: ImportBackupMode = ImportBackupMode.Replace
     ) = withContext(Dispatchers.IO) {
+        restoreFromInput(context, mode) {
+            context.contentResolver.openInputStream(sourceUri) ?: error("Unable to open backup file")
+        }
+    }
+
+    suspend fun fromFile(
+        context: Context,
+        sourceFile: File,
+        mode: ImportBackupMode = ImportBackupMode.Replace
+    ) = withContext(Dispatchers.IO) {
+        restoreFromInput(context, mode) {
+            sourceFile.inputStream()
+        }
+    }
+
+    private fun restoreFromInput(
+        context: Context,
+        mode: ImportBackupMode,
+        openInput: () -> InputStream
+    ) {
         val restoreRoot = File(context.cacheDir, "flux_restore_${TimeUtil.generateUuid()}")
         val stagedData = File(restoreRoot, DataPaths.DATA_DIR_NAME)
         restoreRoot.deleteRecursively()
         restoreRoot.mkdirs()
 
         try {
-            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+            openInput().use { input ->
                 ZipInputStream(input.buffered()).use { zip ->
                     generateSequence { zip.nextEntry }.forEach { entry ->
                         if (entry.isDirectory) return@forEach
@@ -39,7 +60,7 @@ class ImportBackupUseCase @Inject constructor(
                         target.outputStream().use { zip.copyTo(it) }
                     }
                 }
-            } ?: error("Unable to open backup file")
+            }
 
             val stagedDb = File(stagedData, DataPaths.DATABASE_NAME)
             if (!stagedDb.isFile || stagedDb.length() <= 0L) {

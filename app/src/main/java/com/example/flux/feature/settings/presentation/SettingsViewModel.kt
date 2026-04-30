@@ -8,6 +8,8 @@ import com.example.flux.core.database.entity.CalendarSubscriptionEntity
 import com.example.flux.core.domain.settings.ImportBackupMode
 import com.example.flux.core.domain.trash.TrashSummary
 import com.example.flux.core.settings.WeatherAppBinding
+import com.example.flux.core.sync.SyncStatus
+import com.example.flux.core.sync.WebDavSyncConfig
 import com.example.flux.feature.settings.domain.SettingsFeatureGateway
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Calendar
@@ -23,17 +25,21 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val isExportingBackup: Boolean = false,
     val isImportingBackup: Boolean = false,
+    val isSyncingData: Boolean = false,
     val isSyncingCalendar: Boolean = false,
     val weekStartDay: Int = Calendar.SUNDAY,
     val reminderSoundEnabled: Boolean = true,
     val weatherAppBinding: WeatherAppBinding? = null,
     val calendarSubscriptions: List<CalendarSubscriptionEntity> = emptyList(),
-    val trashSummary: TrashSummary = TrashSummary()
+    val trashSummary: TrashSummary = TrashSummary(),
+    val syncConfig: WebDavSyncConfig = WebDavSyncConfig(),
+    val syncStatus: SyncStatus = SyncStatus()
 )
 
 private data class SettingsOperationState(
     val isExportingBackup: Boolean = false,
     val isImportingBackup: Boolean = false,
+    val isSyncingData: Boolean = false,
     val isSyncingCalendar: Boolean = false
 )
 
@@ -42,7 +48,9 @@ private data class SettingsContentState(
     val reminderSoundEnabled: Boolean = true,
     val weatherAppBinding: WeatherAppBinding? = null,
     val calendarSubscriptions: List<CalendarSubscriptionEntity> = emptyList(),
-    val trashSummary: TrashSummary = TrashSummary()
+    val trashSummary: TrashSummary = TrashSummary(),
+    val syncConfig: WebDavSyncConfig = WebDavSyncConfig(),
+    val syncStatus: SyncStatus = SyncStatus()
 )
 
 @HiltViewModel
@@ -58,6 +66,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _isSyncingCalendar = MutableStateFlow(false)
     val isSyncingCalendar = _isSyncingCalendar.asStateFlow()
+
+    private val _isSyncingData = MutableStateFlow(false)
+    val isSyncingData = _isSyncingData.asStateFlow()
 
     val calendarSubscriptions: StateFlow<List<CalendarSubscriptionEntity>> =
         settingsFeatureGateway.observeCalendarSubscriptions()
@@ -96,14 +107,30 @@ class SettingsViewModel @Inject constructor(
             initialValue = TrashSummary()
         )
 
+    val syncConfig: StateFlow<WebDavSyncConfig> = settingsFeatureGateway.observeSyncConfig()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = WebDavSyncConfig()
+        )
+
+    val syncStatus: StateFlow<SyncStatus> = settingsFeatureGateway.observeSyncStatus()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = SyncStatus()
+        )
+
     private val operationState: StateFlow<SettingsOperationState> = combine(
         _isExportingBackup,
         _isImportingBackup,
+        _isSyncingData,
         _isSyncingCalendar
-    ) { isExporting, isImporting, isSyncingCalendar ->
+    ) { isExporting, isImporting, isSyncingData, isSyncingCalendar ->
         SettingsOperationState(
             isExportingBackup = isExporting,
             isImportingBackup = isImporting,
+            isSyncingData = isSyncingData,
             isSyncingCalendar = isSyncingCalendar
         )
     }.stateIn(
@@ -112,7 +139,7 @@ class SettingsViewModel @Inject constructor(
         initialValue = SettingsOperationState()
     )
 
-    private val contentState: StateFlow<SettingsContentState> = combine(
+    private val baseContentState: StateFlow<SettingsContentState> = combine(
         weekStartDay,
         reminderSoundEnabled,
         weatherAppBinding,
@@ -132,6 +159,18 @@ class SettingsViewModel @Inject constructor(
         initialValue = SettingsContentState()
     )
 
+    private val contentState: StateFlow<SettingsContentState> = combine(
+        baseContentState,
+        syncConfig,
+        syncStatus
+    ) { content, config, status ->
+        content.copy(syncConfig = config, syncStatus = status)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = SettingsContentState()
+    )
+
     val uiState: StateFlow<SettingsUiState> = combine(
         operationState,
         contentState
@@ -139,12 +178,15 @@ class SettingsViewModel @Inject constructor(
         SettingsUiState(
             isExportingBackup = operation.isExportingBackup,
             isImportingBackup = operation.isImportingBackup,
+            isSyncingData = operation.isSyncingData || content.syncStatus.isRunning,
             isSyncingCalendar = operation.isSyncingCalendar,
             weekStartDay = content.weekStartDay,
             reminderSoundEnabled = content.reminderSoundEnabled,
             weatherAppBinding = content.weatherAppBinding,
             calendarSubscriptions = content.calendarSubscriptions,
-            trashSummary = content.trashSummary
+            trashSummary = content.trashSummary,
+            syncConfig = content.syncConfig,
+            syncStatus = content.syncStatus
         )
     }.stateIn(
         scope = viewModelScope,
@@ -180,6 +222,40 @@ class SettingsViewModel @Inject constructor(
     fun setReminderSoundEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsFeatureGateway.setReminderSoundEnabled(enabled)
+        }
+    }
+
+    fun saveSyncConfig(config: WebDavSyncConfig, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching { settingsFeatureGateway.saveSyncConfig(config) }
+            result.fold(
+                onSuccess = { onDone(true, "\u5df2\u4fdd\u5b58\u540c\u6b65\u914d\u7f6e") },
+                onFailure = { throwable -> onDone(false, throwable.message ?: "\u540c\u6b65\u914d\u7f6e\u4fdd\u5b58\u5931\u8d25") }
+            )
+        }
+    }
+
+    fun testSyncConnection(config: WebDavSyncConfig, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _isSyncingData.value = true
+            val result = runCatching { settingsFeatureGateway.testSyncConnection(config) }
+            _isSyncingData.value = false
+            result.fold(
+                onSuccess = { ok -> onDone(ok, if (ok) "\u8fde\u63a5\u6210\u529f" else "\u8fde\u63a5\u5931\u8d25") },
+                onFailure = { throwable -> onDone(false, throwable.message ?: "\u8fde\u63a5\u5931\u8d25") }
+            )
+        }
+    }
+
+    fun syncNow(onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _isSyncingData.value = true
+            val result = runCatching { settingsFeatureGateway.syncNow() }
+            _isSyncingData.value = false
+            result.fold(
+                onSuccess = { onDone(true, it.message) },
+                onFailure = { throwable -> onDone(false, throwable.message ?: "\u540c\u6b65\u5931\u8d25") }
+            )
         }
     }
 
