@@ -48,7 +48,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.flux.core.sync.SyncStatus
 import com.example.flux.core.sync.WebDavSyncConfig
 import com.example.flux.core.sync.JIANGUOYUN_WEBDAV_URL
 import com.example.flux.core.util.TimeUtil
@@ -68,9 +67,10 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var incrementalImport by remember { mutableStateOf(false) }
-    var showSyncSettings by remember { mutableStateOf(false) }
+    var showWebDavSettings by remember { mutableStateOf(false) }
     var showCloudRestoreConfirm by remember { mutableStateOf(false) }
     var incrementalCloudRestore by remember { mutableStateOf(false) }
+    var showWeekStartDialog by remember { mutableStateOf(false) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip"),
@@ -112,26 +112,48 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp)
         ) {
-            WeekStartSetting(
-                selected = uiState.weekStartDay,
-                onSelected = viewModel::setWeekStartDay
-            )
-            ReminderSoundSetting(
-                enabled = uiState.reminderSoundEnabled,
-                onEnabledChange = viewModel::setReminderSoundEnabled
-            )
             SettingsActionItem(
-                title = "\u591a\u7aef\u540c\u6b65",
-                subtitle = when {
-                    uiState.isSyncingData -> "\u6b63\u5728\u540c\u6b65..."
-                    uiState.syncStatus.lastError.isNotBlank() -> "\u4e0a\u6b21\u5931\u8d25\uff1a${uiState.syncStatus.lastError}"
-                    uiState.syncStatus.lastSyncAt.isNotBlank() -> "\u4e0a\u6b21\u540c\u6b65\uff1a${uiState.syncStatus.lastSyncAt}"
-                    uiState.syncConfig.enabled -> "\u5df2\u5f00\u542f\uff0c\u5c1a\u672a\u540c\u6b65"
-                    else -> "\u901a\u8fc7 WebDAV \u540c\u6b65\u6570\u636e\u5e93\u5feb\u7167\u548c\u9644\u4ef6"
+                title = "WebDAV \u4e91\u5907\u4efd\u914d\u7f6e",
+                subtitle = if (uiState.webDavConfig.username.isNotBlank()) {
+                    "\u5df2\u914d\u7f6e\u8d26\u53f7\uff1a${uiState.webDavConfig.username}"
+                } else {
+                    "\u586b\u5199\u575a\u679c\u4e91\u8d26\u53f7\u548c\u7b2c\u4e09\u65b9\u5e94\u7528\u5bc6\u7801"
                 },
                 icon = Icons.Default.Refresh,
                 tint = MaterialTheme.colorScheme.primary,
-                onClick = { showSyncSettings = true }
+                onClick = { showWebDavSettings = true }
+            )
+            SettingsActionItem(
+                title = "\u5907\u4efd\u5230\u4e91\u7aef WebDAV",
+                subtitle = if (uiState.isExportingBackup) {
+                    "\u6b63\u5728\u4e0a\u4f20\u4e91\u5907\u4efd..."
+                } else {
+                    "\u4f7f\u7528\u72ec\u7acb\u76ee\u5f55 FluxBackups"
+                },
+                icon = Icons.Default.Share,
+                tint = MaterialTheme.colorScheme.primary,
+                enabled = !uiState.isExportingBackup,
+                onClick = {
+                    viewModel.backupToCloud { success, message ->
+                        Toast.makeText(
+                            context,
+                            message,
+                            if (success) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            )
+            SettingsActionItem(
+                title = "\u4ece\u4e91\u7aef\u6062\u590d\u5907\u4efd",
+                subtitle = if (uiState.isImportingBackup) {
+                    "\u6b63\u5728\u4ece\u4e91\u7aef\u6062\u590d..."
+                } else {
+                    "\u6062\u590d FluxBackups \u4e2d\u7684\u6700\u65b0\u5907\u4efd"
+                },
+                icon = Icons.Default.Refresh,
+                tint = MaterialTheme.colorScheme.primary,
+                enabled = !uiState.isImportingBackup,
+                onClick = { showCloudRestoreConfirm = true }
             )
             SettingsActionItem(
                 title = "天气 App 绑定",
@@ -186,61 +208,25 @@ fun SettingsScreen(
                 enabled = !uiState.isImportingBackup,
                 onClick = { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
             )
-            SettingsActionItem(
-                title = "\u5907\u4efd\u5230\u4e91\u7aef WebDAV",
-                subtitle = if (uiState.isExportingBackup) {
-                    "\u6b63\u5728\u4e0a\u4f20\u4e91\u5907\u4efd..."
-                } else {
-                    "\u4f7f\u7528\u72ec\u7acb\u76ee\u5f55 FluxBackups\uff0c\u4e0d\u53c2\u4e0e\u591a\u7aef\u540c\u6b65"
-                },
-                icon = Icons.Default.Share,
-                tint = MaterialTheme.colorScheme.primary,
-                enabled = !uiState.isExportingBackup,
-                onClick = {
-                    viewModel.backupToCloud { success, message ->
-                        Toast.makeText(
-                            context,
-                            message,
-                            if (success) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
+            WeekStartSetting(
+                selected = uiState.weekStartDay,
+                onClick = { showWeekStartDialog = true }
             )
-            SettingsActionItem(
-                title = "\u4ece\u4e91\u7aef\u6062\u590d\u5907\u4efd",
-                subtitle = if (uiState.isImportingBackup) {
-                    "\u6b63\u5728\u4ece\u4e91\u7aef\u6062\u590d..."
-                } else {
-                    "\u6062\u590d FluxBackups \u4e2d\u7684\u6700\u65b0\u5907\u4efd"
-                },
-                icon = Icons.Default.Refresh,
-                tint = MaterialTheme.colorScheme.primary,
-                enabled = !uiState.isImportingBackup,
-                onClick = { showCloudRestoreConfirm = true }
+            ReminderSoundSetting(
+                enabled = uiState.reminderSoundEnabled,
+                onEnabledChange = viewModel::setReminderSoundEnabled
             )
         }
     }
 
-    if (showSyncSettings) {
-        SyncSettingsDialog(
-            config = uiState.syncConfig,
-            status = uiState.syncStatus,
-            isSyncing = uiState.isSyncingData,
-            onDismiss = { showSyncSettings = false },
+    if (showWebDavSettings) {
+        WebDavSettingsDialog(
+            config = uiState.webDavConfig,
+            onDismiss = { showWebDavSettings = false },
             onSave = { config ->
-                viewModel.saveSyncConfig(config) { success, message ->
+                viewModel.saveWebDavConfig(config) { success, message ->
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                    if (success) showSyncSettings = false
-                }
-            },
-            onTest = { config ->
-                viewModel.testSyncConnection(config) { _, message ->
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                }
-            },
-            onSyncNow = {
-                viewModel.syncNow { _, message ->
-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                    if (success) showWebDavSettings = false
                 }
             }
         )
@@ -364,58 +350,48 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (showWeekStartDialog) {
+        WeekStartDialog(
+            selected = uiState.weekStartDay,
+            onDismiss = { showWeekStartDialog = false },
+            onSelected = { day ->
+                viewModel.setWeekStartDay(day)
+                showWeekStartDialog = false
+            }
+        )
+    }
 }
 
 @Composable
-private fun SyncSettingsDialog(
+private fun WebDavSettingsDialog(
     config: WebDavSyncConfig,
-    status: SyncStatus,
-    isSyncing: Boolean,
     onDismiss: () -> Unit,
-    onSave: (WebDavSyncConfig) -> Unit,
-    onTest: (WebDavSyncConfig) -> Unit,
-    onSyncNow: () -> Unit
+    onSave: (WebDavSyncConfig) -> Unit
 ) {
-    var enabled by remember(config) { mutableStateOf(config.enabled) }
     var username by remember(config) { mutableStateOf(config.username) }
     var password by remember(config) { mutableStateOf(config.password) }
-    var remoteDir by remember(config) { mutableStateOf(config.remoteDir) }
 
     fun currentConfig(): WebDavSyncConfig {
         return WebDavSyncConfig(
-            enabled = enabled,
+            enabled = true,
             baseUrl = JIANGUOYUN_WEBDAV_URL,
             username = username,
             password = password,
-            remoteDir = remoteDir
+            remoteDir = config.remoteDir
         )
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("\u591a\u7aef\u540c\u6b65") },
+        title = { Text("WebDAV \u4e91\u5907\u4efd\u914d\u7f6e") },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 460.dp)
+                    .heightIn(max = 360.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { enabled = !enabled },
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    Switch(
-                        checked = enabled,
-                        onCheckedChange = { enabled = it }
-                    )
-                    Text(
-                        text = if (enabled) "\u5df2\u5f00\u542f" else "\u672a\u5f00\u542f",
-                        modifier = Modifier.padding(start = 12.dp, top = 12.dp)
-                    )
-                }
                 Text(
                     text = "WebDAV \u5730\u5740\uff1a$JIANGUOYUN_WEBDAV_URL",
                     modifier = Modifier.padding(top = 12.dp)
@@ -432,61 +408,20 @@ private fun SyncSettingsDialog(
                     label = { Text("\u5e94\u7528\u5bc6\u7801") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = remoteDir,
-                    onValueChange = { remoteDir = it },
-                    label = { Text("\u540c\u6b65\u76ee\u5f55") },
-                    modifier = Modifier.fillMaxWidth()
-                )
                 Text(
-                    text = when {
-                        isSyncing -> "\u72b6\u6001\uff1a\u6b63\u5728\u540c\u6b65"
-                        status.lastError.isNotBlank() -> "\u72b6\u6001\uff1a${status.lastError}"
-                        status.lastMessage.isNotBlank() -> "\u72b6\u6001\uff1a${status.lastMessage}"
-                        else -> "\u72b6\u6001\uff1a\u5c1a\u672a\u540c\u6b65"
-                    },
+                    text = "\u4e91\u5907\u4efd\u76ee\u5f55\u56fa\u5b9a\u4e3a\uff1a\u6211\u7684\u575a\u679c\u4e91/FluxBackups",
                     modifier = Modifier.padding(top = 12.dp)
                 )
-                if (status.lastSyncAt.isNotBlank()) {
-                    Text(
-                        text = "\u6700\u540e\u540c\u6b65\uff1a${status.lastSyncAt}",
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                status.logs.take(6).forEach { log ->
-                    Text(
-                        text = "${log.time} ${log.level}: ${log.message}",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = !isSyncing,
-                onClick = { onSave(currentConfig()) }
-            ) {
+            TextButton(onClick = { onSave(currentConfig()) }) {
                 Text("\u4fdd\u5b58")
             }
         },
         dismissButton = {
-            Row {
-                TextButton(
-                    enabled = !isSyncing,
-                    onClick = { onTest(currentConfig()) }
-                ) {
-                    Text("\u6d4b\u8bd5")
-                }
-                TextButton(
-                    enabled = !isSyncing,
-                    onClick = onSyncNow
-                ) {
-                    Text("\u7acb\u5373\u540c\u6b65")
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("\u5173\u95ed")
-                }
+            TextButton(onClick = onDismiss) {
+                Text("\u5173\u95ed")
             }
         }
     )
@@ -554,6 +489,75 @@ private fun WeekStartSetting(
                 modifier = Modifier.padding(top = 12.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun WeekStartSetting(
+    selected: Int,
+    onClick: () -> Unit
+) {
+    SettingsActionItem(
+        title = "\u6bcf\u5468\u5f00\u59cb\u65e5",
+        subtitle = if (selected == Calendar.MONDAY) "\u5468\u4e00" else "\u5468\u65e5",
+        icon = Icons.Default.DateRange,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        onClick = onClick
+    )
+}
+
+@Composable
+private fun WeekStartDialog(
+    selected: Int,
+    onDismiss: () -> Unit,
+    onSelected: (Int) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("\u6bcf\u5468\u5f00\u59cb\u65e5") },
+        text = {
+            Column {
+                WeekStartOption(
+                    text = "\u5468\u65e5",
+                    selected = selected != Calendar.MONDAY,
+                    onClick = { onSelected(Calendar.SUNDAY) }
+                )
+                WeekStartOption(
+                    text = "\u5468\u4e00",
+                    selected = selected == Calendar.MONDAY,
+                    onClick = { onSelected(Calendar.MONDAY) }
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("\u53d6\u6d88")
+            }
+        }
+    )
+}
+
+@Composable
+private fun WeekStartOption(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick
+        )
+        Text(
+            text = text,
+            modifier = Modifier.padding(top = 12.dp)
+        )
     }
 }
 

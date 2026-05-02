@@ -91,7 +91,7 @@ class CloudBackupManager @Inject constructor(
     private fun backupConfig(): WebDavSyncConfig {
         val config = stateStore.getConfig()
         require(config.username.isNotBlank() && config.password.isNotBlank()) {
-            "\u8bf7\u5148\u5728\u591a\u7aef\u540c\u6b65\u4e2d\u586b\u5199 WebDAV \u8d26\u53f7\u548c\u5e94\u7528\u5bc6\u7801"
+            "\u8bf7\u5148\u914d\u7f6e WebDAV \u8d26\u53f7\u548c\u5e94\u7528\u5bc6\u7801"
         }
         return config.copy(
             enabled = true,

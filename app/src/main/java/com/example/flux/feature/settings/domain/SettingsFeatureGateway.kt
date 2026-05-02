@@ -8,8 +8,6 @@ import com.example.flux.core.domain.settings.ImportBackupMode
 import com.example.flux.core.domain.trash.TrashSummary
 import com.example.flux.core.settings.WeatherAppBinding
 import com.example.flux.core.sync.CloudBackupResult
-import com.example.flux.core.sync.SyncRunResult
-import com.example.flux.core.sync.SyncStatus
 import com.example.flux.core.sync.WebDavSyncConfig
 import kotlinx.coroutines.flow.Flow
 
@@ -32,9 +30,6 @@ interface SettingsFeatureGateway {
     suspend fun importBackup(context: Context, uri: Uri, mode: ImportBackupMode)
     suspend fun backupToCloud(): CloudBackupResult
     suspend fun restoreFromCloud(mode: ImportBackupMode): CloudBackupResult
-    fun observeSyncConfig(): Flow<WebDavSyncConfig>
-    fun observeSyncStatus(): Flow<SyncStatus>
-    suspend fun saveSyncConfig(config: WebDavSyncConfig)
-    suspend fun testSyncConnection(config: WebDavSyncConfig): Boolean
-    suspend fun syncNow(): SyncRunResult
+    fun observeWebDavConfig(): Flow<WebDavSyncConfig>
+    suspend fun saveWebDavConfig(config: WebDavSyncConfig)
 }

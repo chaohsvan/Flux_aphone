@@ -16,10 +16,7 @@ import com.example.flux.core.settings.AppPreferences
 import com.example.flux.core.settings.WeatherAppBinding
 import com.example.flux.core.sync.CloudBackupManager
 import com.example.flux.core.sync.CloudBackupResult
-import com.example.flux.core.sync.FluxSyncManager
-import com.example.flux.core.sync.SyncRunResult
 import com.example.flux.core.sync.SyncStateStore
-import com.example.flux.core.sync.SyncStatus
 import com.example.flux.core.sync.WebDavSyncConfig
 import com.example.flux.core.util.TimeUtil
 import com.example.flux.feature.settings.domain.SettingsFeatureGateway
@@ -33,7 +30,6 @@ class DefaultSettingsFeatureGateway @Inject constructor(
     private val observeTrashSummaryUseCase: ObserveTrashSummaryUseCase,
     private val appPreferences: AppPreferences,
     private val syncStateStore: SyncStateStore,
-    private val fluxSyncManager: FluxSyncManager,
     private val cloudBackupManager: CloudBackupManager,
     private val calendarSubscriptionDao: CalendarSubscriptionDao,
     private val eventDao: EventDao,
@@ -144,24 +140,12 @@ class DefaultSettingsFeatureGateway @Inject constructor(
         return cloudBackupManager.restoreLatest(mode)
     }
 
-    override fun observeSyncConfig(): Flow<WebDavSyncConfig> {
+    override fun observeWebDavConfig(): Flow<WebDavSyncConfig> {
         return syncStateStore.observeConfig()
     }
 
-    override fun observeSyncStatus(): Flow<SyncStatus> {
-        return syncStateStore.observeStatus()
-    }
-
-    override suspend fun saveSyncConfig(config: WebDavSyncConfig) {
+    override suspend fun saveWebDavConfig(config: WebDavSyncConfig) {
         syncStateStore.saveConfig(config)
-    }
-
-    override suspend fun testSyncConnection(config: WebDavSyncConfig): Boolean {
-        return fluxSyncManager.testConnection(config)
-    }
-
-    override suspend fun syncNow(): SyncRunResult {
-        return fluxSyncManager.syncNow()
     }
 
     private fun validateSubscriptionInput(name: String, icsUrl: String) {

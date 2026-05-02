@@ -11,19 +11,19 @@ class SyncCoreTest {
     private val jianguoyunRoot = "\u6211\u7684\u575a\u679c\u4e91"
 
     @Test
-    fun jianguoyunConfig_addsRootDirectoryForPlainRemoteDir() {
+    fun jianguoyunConfig_addsRootDirectoryForCloudBackupDir() {
         val path = RemoteSyncPath.from(
             WebDavSyncConfig(
                 baseUrl = JIANGUOYUN_WEBDAV_URL,
                 username = "user@example.com",
                 password = "password",
-                remoteDir = "FluxSync"
+                remoteDir = "FluxBackups"
             )
         )
 
-        assertEquals("$jianguoyunRoot/FluxSync", path.directory)
-        assertEquals("$jianguoyunRoot/FluxSync/FluxSync", path.root)
-        assertEquals("FluxSync", path.filePrefix)
+        assertEquals("$jianguoyunRoot/FluxBackups", path.directory)
+        assertEquals("$jianguoyunRoot/FluxBackups/FluxBackups", path.root)
+        assertEquals("FluxBackups", path.filePrefix)
         assertEquals(1, path.protectedDirectorySegments)
     }
 
@@ -34,12 +34,12 @@ class SyncCoreTest {
                 baseUrl = JIANGUOYUN_WEBDAV_URL,
                 username = "user@example.com",
                 password = "password",
-                remoteDir = "$jianguoyunRoot/FluxSync"
+                remoteDir = "$jianguoyunRoot/FluxBackups"
             )
         )
 
-        assertEquals("$jianguoyunRoot/FluxSync", path.directory)
-        assertEquals("FluxSync", path.filePrefix)
+        assertEquals("$jianguoyunRoot/FluxBackups", path.directory)
+        assertEquals("FluxBackups", path.filePrefix)
         assertEquals(1, path.protectedDirectorySegments)
     }
 
@@ -64,55 +64,7 @@ class SyncCoreTest {
         assertFalse(WebDavSyncConfig(username = "user", password = "").isConfigured)
         assertFalse(WebDavSyncConfig(username = "", password = "password").isConfigured)
         assertFalse(WebDavSyncConfig(username = "user", password = "password", remoteDir = "").isConfigured)
-        assertTrue(WebDavSyncConfig(username = "user", password = "password", remoteDir = "FluxSync").isConfigured)
-    }
-
-    @Test
-    fun manifest_roundTripsAllFields() {
-        val manifest = SyncManifest(
-            protocolVersion = 2,
-            latestDbSnapshotId = "snapshot-1",
-            latestDbPath = "db/history/snapshot-1.zip",
-            latestDbHash = "abc123",
-            updatedAt = "2026-04-30T21:00:00",
-            updatedByDeviceId = "device-a",
-            attachmentManifestVersion = 42
-        )
-
-        val parsed = SyncManifest.fromJson(manifest.toJson())
-
-        assertEquals(manifest, parsed)
-    }
-
-    @Test
-    fun attachmentManifest_roundTripsDeletedEntries() {
-        val manifest = AttachmentSyncManifest(
-            version = 3,
-            updatedAt = "2026-04-30T21:01:00",
-            files = listOf(
-                AttachmentSyncEntry(
-                    path = "attachments/diaries/a.png",
-                    sha256 = "hash-a",
-                    sizeBytes = 128,
-                    modifiedAt = 1000,
-                    updatedAt = "2026-04-30T21:00:00",
-                    updatedByDeviceId = "device-a"
-                ),
-                AttachmentSyncEntry(
-                    path = "attachments/diaries/deleted.png",
-                    sha256 = "hash-deleted",
-                    sizeBytes = 256,
-                    modifiedAt = 2000,
-                    updatedAt = "2026-04-30T21:02:00",
-                    updatedByDeviceId = "device-b",
-                    deletedAt = "2026-04-30T21:03:00"
-                )
-            )
-        )
-
-        val parsed = AttachmentSyncManifest.fromJson(manifest.toJson())
-
-        assertEquals(manifest, parsed)
+        assertTrue(WebDavSyncConfig(username = "user", password = "password", remoteDir = "FluxBackups").isConfigured)
     }
 
     @Test
