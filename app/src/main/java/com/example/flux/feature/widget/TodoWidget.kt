@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.provideContent
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
@@ -18,10 +21,12 @@ import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.example.flux.MainActivity
+import com.example.flux.R
 import com.example.flux.core.database.entity.TodoEntity
 import com.example.flux.core.util.TimeUtil
 import dagger.hilt.android.EntryPointAccessors
@@ -47,36 +52,38 @@ class TodoWidgetReceiver : GlanceAppWidgetReceiver() {
 
 @Composable
 private fun TodoWidgetContent(state: TodoWidgetState) {
-    Column(
-        modifier = GlanceModifier
-            .widgetContainer()
-            .clickable(actionStartActivity<MainActivity>())
-    ) {
+    Column(modifier = GlanceModifier.widgetContainer()) {
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = GlanceModifier.defaultWeight()) {
-                Text(
-                    text = Labels.TODO,
-                    style = TextStyle(
-                        color = FluxWidgetTheme.text,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            Text(
+                text = Labels.TODO,
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .clickable(actionStartActivity<MainActivity>()),
+                style = TextStyle(
+                    color = FluxWidgetTheme.text,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = Labels.todoListSubtitle(state.visibleTodos.size, state.pendingCount),
-                    style = TextStyle(color = FluxWidgetTheme.muted, fontSize = 12.sp)
-                )
-            }
+            )
             Text(
                 text = state.today.takeLast(5),
+                modifier = GlanceModifier.padding(end = 12.dp),
                 style = TextStyle(
                     color = FluxWidgetTheme.primary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
+            )
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_refresh),
+                contentDescription = Labels.REFRESH,
+                modifier = GlanceModifier
+                    .width(24.dp)
+                    .height(24.dp)
+                    .clickable(actionRunCallback<TodoWidgetRefreshAction>())
             )
         }
 
@@ -85,6 +92,7 @@ private fun TodoWidgetContent(state: TodoWidgetState) {
         if (state.visibleTodos.isEmpty()) {
             Text(
                 text = Labels.NO_TODO,
+                modifier = GlanceModifier.clickable(actionStartActivity<MainActivity>()),
                 style = TextStyle(color = FluxWidgetTheme.muted, fontSize = 13.sp)
             )
         } else {
@@ -102,7 +110,8 @@ private fun TodoWidgetRow(todo: TodoEntity) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 2.dp)
+            .clickable(actionStartActivity<MainActivity>()),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(

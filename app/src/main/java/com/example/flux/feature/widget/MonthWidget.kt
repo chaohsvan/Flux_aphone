@@ -4,18 +4,22 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
@@ -24,6 +28,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.example.flux.MainActivity
+import com.example.flux.R
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.first
 
@@ -48,24 +53,49 @@ class MonthWidgetReceiver : GlanceAppWidgetReceiver() {
 @Composable
 private fun MonthWidgetContent(state: MonthWidgetState) {
     Column(
-        modifier = GlanceModifier
-            .widgetContainer()
-            .clickable(actionStartActivity<MainActivity>())
+        modifier = GlanceModifier.widgetContainer()
     ) {
-        Text(
-            text = state.title,
-            style = TextStyle(
-                color = FluxWidgetTheme.text,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = state.title,
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .clickable(actionStartActivity<MainActivity>()),
+                style = TextStyle(
+                    color = FluxWidgetTheme.text,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
             )
-        )
-        Spacer(modifier = GlanceModifier.height(8.dp))
+            Image(
+                provider = ImageProvider(R.drawable.ic_widget_refresh),
+                contentDescription = Labels.REFRESH,
+                modifier = GlanceModifier
+                    .width(24.dp)
+                    .height(24.dp)
+                    .clickable(actionRunCallback<MonthWidgetRefreshAction>())
+            )
+        }
+        Spacer(modifier = GlanceModifier.height(6.dp))
         WeekHeader()
-        state.cells.chunked(7).forEach { week ->
-            Row(modifier = GlanceModifier.fillMaxWidth()) {
-                week.forEach { cell ->
-                    MonthDayCell(cell, modifier = GlanceModifier.defaultWeight())
+        Spacer(modifier = GlanceModifier.height(2.dp))
+        Column(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .defaultWeight()
+        ) {
+            state.cells.chunked(7).forEach { week ->
+                Row(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .defaultWeight()
+                ) {
+                    week.forEach { cell ->
+                        MonthDayCell(cell, modifier = GlanceModifier.defaultWeight())
+                    }
                 }
             }
         }
@@ -94,9 +124,10 @@ private fun MonthDayCell(cell: MonthWidgetDayCell, modifier: GlanceModifier = Gl
     val contentColor = if (cell.isToday) FluxWidgetTheme.primary else FluxWidgetTheme.text
     Column(
         modifier = modifier
-            .height(32.dp)
+            .fillMaxHeight()
             .padding(1.dp)
-            .background(if (cell.isToday) FluxWidgetTheme.surface else FluxWidgetTheme.background),
+            .background(if (cell.isToday) FluxWidgetTheme.surface else FluxWidgetTheme.background)
+            .clickable(actionStartActivity<MainActivity>()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
