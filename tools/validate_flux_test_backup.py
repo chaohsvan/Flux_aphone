@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Validate the generated Flux test backup and simulate merge import."""
 
 from __future__ import annotations
@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 import shutil
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -32,13 +34,14 @@ MERGE_TABLES = [
 
 
 def main() -> None:
-    assert BACKUP_PATH.is_file(), f"找不到备份包: {BACKUP_PATH}"
+    if not BACKUP_PATH.is_file():
+        subprocess.run([sys.executable, str(ROOT / 'tools' / 'generate_flux_test_backup.py')], check=True)
     with tempfile.TemporaryDirectory(prefix="flux_import_test_", ignore_cleanup_errors=True) as temp_name:
         temp_root = Path(temp_name)
         staged_db = extract_like_import_use_case(temp_root)
         validate_backup_database(staged_db)
         simulate_merge_import(staged_db, temp_root / "main.db")
-    print("导入备份验证通过")
+    print("瀵煎叆澶囦唤楠岃瘉閫氳繃")
 
 
 def extract_like_import_use_case(temp_root: Path) -> Path:
@@ -53,13 +56,13 @@ def extract_like_import_use_case(temp_root: Path) -> Path:
                 continue
             target = (restore_root / clean_name).resolve()
             if not str(target).startswith(str(restore_root.resolve())):
-                raise AssertionError("备份包包含非法路径")
+                raise AssertionError("backup archive contains an unsafe path")
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(info) as source, target.open("wb") as output:
                 shutil.copyfileobj(source, output)
 
     staged_db = restore_root / "data" / "flux.db"
-    assert staged_db.is_file() and staged_db.stat().st_size > 0, "备份包缺少 data/flux.db"
+    assert staged_db.is_file() and staged_db.stat().st_size > 0, "backup archive is missing data/flux.db"
     return staged_db
 
 
@@ -78,11 +81,11 @@ def validate_backup_database(db_path: Path) -> None:
         }
         for table, expected in expected_counts.items():
             actual = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-            assert actual == expected, f"{table} 数量不对: {actual} != {expected}"
+            assert actual == expected, f"{table} 鏁伴噺涓嶅: {actual} != {expected}"
 
         todo_columns = {row[1] for row in conn.execute("PRAGMA table_info(todos)")}
         forbidden_columns = {"recurrence", "recurrence_interval", "recurrence_until", "parent_todo_id"}
-        assert todo_columns.isdisjoint(forbidden_columns), "todos 表仍包含重复待办字段"
+        assert todo_columns.isdisjoint(forbidden_columns), "todos 琛ㄤ粛鍖呭惈閲嶅寰呭姙瀛楁"
 
         assert conn.execute("SELECT COUNT(*) FROM todos WHERE due_at IS NULL").fetchone()[0] > 0
         assert conn.execute("SELECT COUNT(*) FROM todos WHERE start_at IS NULL").fetchone()[0] > 0
@@ -177,3 +180,4 @@ def escape_path(path: Path) -> str:
 
 if __name__ == "__main__":
     main()
+
