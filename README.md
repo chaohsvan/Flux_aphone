@@ -1,4 +1,11 @@
+## 许可证
+
+本项目采用 GNU General Public License v3.0 许可证开源，详见 [LICENSE](LICENSE)。
+
+Copyright (C) 2026 chaohsvan
+
 # Flux
+（基于vibe coding）
 
 Flux 是一个本地优先的 Android 个人记录与日程管理应用。它把日记、待办、日历和备份放在同一个轻量工作流里，适合把日常记录、计划安排和个人数据长期保存在自己的设备上。
 
