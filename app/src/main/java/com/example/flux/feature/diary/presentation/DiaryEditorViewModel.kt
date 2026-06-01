@@ -25,6 +25,7 @@ data class DiaryEditorUiState(
     val contentMd: String = "",
     val entryDate: String = "",
     val entryTime: String? = null,
+    val reminderMinutesText: String = "",
     val mood: String? = null,
     val weather: String? = null,
     val locationName: String? = null,
@@ -73,6 +74,7 @@ class DiaryEditorViewModel @Inject constructor(
                         contentMd = diary.contentMd,
                         entryDate = diary.entryDate,
                         entryTime = diary.entryTime,
+                        reminderMinutesText = diary.reminderMinutes?.toString().orEmpty(),
                         mood = diary.mood,
                         weather = diary.weather,
                         locationName = diary.locationName,
@@ -103,6 +105,10 @@ class DiaryEditorViewModel @Inject constructor(
 
     fun updateEntryTime(newTime: String) {
         _uiState.update { it.copy(entryTime = TimeUtil.normalizeClockInput(newTime).ifBlank { null }, errorMessage = null) }
+    }
+
+    fun updateReminderMinutes(newReminderMinutes: String) {
+        _uiState.update { it.copy(reminderMinutesText = newReminderMinutes.filter(Char::isDigit).take(5), errorMessage = null) }
     }
 
     fun updateMood(newMood: String?) {
@@ -222,6 +228,7 @@ class DiaryEditorViewModel @Inject constructor(
                 id = currentState.id ?: TimeUtil.generateUuid(),
                 entryDate = entryDate,
                 entryTime = entryTime,
+                reminderMinutes = currentState.reminderMinutesText.toIntOrNull(),
                 title = currentState.title.ifBlank { defaultTitle },
                 contentMd = currentState.contentMd,
                 mood = currentState.mood,

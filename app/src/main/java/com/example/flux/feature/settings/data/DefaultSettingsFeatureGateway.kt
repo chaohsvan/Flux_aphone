@@ -12,6 +12,7 @@ import com.example.flux.core.domain.settings.ImportBackupMode
 import com.example.flux.core.domain.settings.ImportBackupUseCase
 import com.example.flux.core.domain.trash.ObserveTrashSummaryUseCase
 import com.example.flux.core.domain.trash.TrashSummary
+import com.example.flux.core.reminder.ReminderRescheduler
 import com.example.flux.core.settings.AppPreferences
 import com.example.flux.core.settings.WeatherAppBinding
 import com.example.flux.core.sync.CloudBackupManager
@@ -33,7 +34,8 @@ class DefaultSettingsFeatureGateway @Inject constructor(
     private val cloudBackupManager: CloudBackupManager,
     private val calendarSubscriptionDao: CalendarSubscriptionDao,
     private val eventDao: EventDao,
-    private val icsCalendarSyncUseCase: IcsCalendarSyncUseCase
+    private val icsCalendarSyncUseCase: IcsCalendarSyncUseCase,
+    private val reminderRescheduler: ReminderRescheduler
 ) : SettingsFeatureGateway {
 
     override fun observeTrashSummary(): Flow<TrashSummary> = observeTrashSummaryUseCase()
@@ -130,6 +132,9 @@ class DefaultSettingsFeatureGateway @Inject constructor(
 
     override suspend fun importBackup(context: Context, uri: Uri, mode: ImportBackupMode) {
         importBackupUseCase(context, uri, mode)
+        if (mode == ImportBackupMode.Merge) {
+            reminderRescheduler.rescheduleAll()
+        }
     }
 
     override suspend fun backupToCloud(): CloudBackupResult {
@@ -137,7 +142,11 @@ class DefaultSettingsFeatureGateway @Inject constructor(
     }
 
     override suspend fun restoreFromCloud(mode: ImportBackupMode): CloudBackupResult {
-        return cloudBackupManager.restoreLatest(mode)
+        val result = cloudBackupManager.restoreLatest(mode)
+        if (mode == ImportBackupMode.Merge) {
+            reminderRescheduler.rescheduleAll()
+        }
+        return result
     }
 
     override fun observeWebDavConfig(): Flow<WebDavSyncConfig> {

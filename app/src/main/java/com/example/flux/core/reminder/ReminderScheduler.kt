@@ -1,16 +1,15 @@
 package com.example.flux.core.reminder
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.example.flux.core.database.entity.CalendarEventEntity
+import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.TodoEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
-import java.util.TimeZone
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,6 +18,42 @@ class ReminderScheduler @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
+
+    fun scheduleDiary(diary: DiaryEntity) {
+        val reminderMinutes = diary.reminderMinutes
+        val triggerSource = ReminderTimeParser.diaryTriggerSource(diary.entryDate, diary.entryTime)
+        if (reminderMinutes == null || triggerSource.isNullOrBlank() || diary.deletedAt != null) {
+            cancelDiary(diary.id)
+            return
+        }
+
+        val triggerAt = ReminderTimeParser.toEpochMillisOrNull(triggerSource)
+            ?.minus(reminderMinutes.toLong() * MILLIS_PER_MINUTE)
+            ?: run {
+                cancelDiary(diary.id)
+                return
+            }
+        val message = diary.contentMd
+            .lineSequence()
+            .firstOrNull { it.isNotBlank() }
+            ?.take(120)
+            ?: "日记提醒"
+        schedule(
+            requestCode = requestCode(REMINDER_TYPE_DIARY, diary.id),
+            triggerAtMillis = triggerAt,
+            intent = ReminderReceiver.intent(
+                context = context,
+                type = REMINDER_TYPE_DIARY,
+                id = diary.id,
+                title = diary.title.ifBlank { "日记提醒" },
+                message = message
+            )
+        )
+    }
+
+    fun cancelDiary(id: String) {
+        cancel(REMINDER_TYPE_DIARY, id)
+    }
 
     fun scheduleTodo(todo: TodoEntity) {
         val reminderMinutes = todo.reminderMinutes
@@ -33,8 +68,8 @@ class ReminderScheduler @Inject constructor(
             return
         }
 
-        val triggerAt = triggerSource.toEpochMillisOrNull()
-            ?.minus(reminderMinutes * MILLIS_PER_MINUTE)
+        val triggerAt = ReminderTimeParser.toEpochMillisOrNull(triggerSource)
+            ?.minus(reminderMinutes.toLong() * MILLIS_PER_MINUTE)
             ?: run {
                 cancelTodo(todo.id)
                 return
@@ -63,8 +98,8 @@ class ReminderScheduler @Inject constructor(
             return
         }
 
-        val triggerAt = event.startAt.toEpochMillisOrNull()
-            ?.minus(reminderMinutes * MILLIS_PER_MINUTE)
+        val triggerAt = ReminderTimeParser.toEpochMillisOrNull(event.startAt)
+            ?.minus(reminderMinutes.toLong() * MILLIS_PER_MINUTE)
             ?: run {
                 cancelEvent(event.id)
                 return
@@ -86,6 +121,7 @@ class ReminderScheduler @Inject constructor(
         cancel(REMINDER_TYPE_EVENT, id)
     }
 
+    @SuppressLint("ScheduleExactAlarm")
     private fun schedule(requestCode: Int, triggerAtMillis: Long, intent: Intent) {
         val pendingIntent = PendingIntent.getBroadcast(
             context,
@@ -97,11 +133,19 @@ class ReminderScheduler @Inject constructor(
             alarmManager.cancel(pendingIntent)
             return
         }
-        alarmManager.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent
-        )
+        if (canScheduleExactAlarm()) {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        } else {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        }
     }
 
     private fun cancel(type: String, id: String) {
@@ -119,37 +163,12 @@ class ReminderScheduler @Inject constructor(
         return "$type:$id".hashCode()
     }
 
-    private fun String.toEpochMillisOrNull(): Long? {
-        val trimmed = trim()
-        val pattern = when {
-            Regex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z").matches(trimmed) -> "yyyy-MM-dd'T'HH:mm:ss'Z'"
-            Regex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}").matches(trimmed) -> "yyyy-MM-dd'T'HH:mm:ss"
-            Regex("\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}").matches(trimmed) -> "yyyy-MM-dd HH:mm"
-            Regex("\\d{4}-\\d{2}-\\d{2}").matches(trimmed) -> "yyyy-MM-dd"
-            else -> return null
-        }
-        return runCatching {
-            val date = SimpleDateFormat(pattern, Locale.US).apply {
-                isLenient = false
-                if (pattern.endsWith("'Z'")) {
-                    timeZone = TimeZone.getTimeZone("UTC")
-                }
-            }.parse(trimmed) ?: return null
-            if (pattern == "yyyy-MM-dd") {
-                Calendar.getInstance().apply {
-                    time = date
-                    set(Calendar.HOUR_OF_DAY, 9)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
-            } else {
-                date.time
-            }
-        }.getOrNull()
+    private fun canScheduleExactAlarm(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
     }
 
     private companion object {
+        const val REMINDER_TYPE_DIARY = "diary"
         const val REMINDER_TYPE_TODO = "todo"
         const val REMINDER_TYPE_EVENT = "event"
         const val MILLIS_PER_MINUTE = 60_000L

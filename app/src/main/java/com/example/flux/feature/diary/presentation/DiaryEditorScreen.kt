@@ -183,6 +183,7 @@ fun DiaryEditorScreen(
                     uiState = uiState,
                     onDateChange = viewModel::updateEntryDate,
                     onTimeChange = viewModel::updateEntryTime,
+                    onReminderChange = viewModel::updateReminderMinutes,
                     onMoodChange = viewModel::updateMood,
                     onWeatherChange = viewModel::updateWeather,
                     onLocationChange = viewModel::updateLocation,

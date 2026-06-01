@@ -215,6 +215,13 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            ensureColumn(db, "diaries", "reminder_minutes", "INTEGER")
+            FluxPrepackagedDatabaseNormalizer.rebuildDiarySearchIndex(db)
+        }
+    }
+
     @Provides
     @Singleton
     fun provideFluxDatabase(@ApplicationContext context: Context): FluxDatabase {
@@ -242,7 +249,8 @@ object DatabaseModule {
                 MIGRATION_6_7,
                 MIGRATION_7_8,
                 MIGRATION_8_9,
-                MIGRATION_9_10
+                MIGRATION_9_10,
+                MIGRATION_10_11
             )
             .build()
     }

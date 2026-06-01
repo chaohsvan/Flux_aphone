@@ -98,6 +98,7 @@ object FluxPrepackagedDatabaseNormalizer {
                 location_name TEXT,
                 is_favorite INTEGER NOT NULL DEFAULT 0,
                 word_count INTEGER NOT NULL DEFAULT 0,
+                reminder_minutes INTEGER,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 deleted_at TEXT,
@@ -112,12 +113,12 @@ object FluxPrepackagedDatabaseNormalizer {
             """
             INSERT OR REPLACE INTO diaries_room (
                 id, entry_date, title, content_md, mood, weather, location_name,
-                is_favorite, word_count, created_at, updated_at, deleted_at, version,
+                is_favorite, word_count, reminder_minutes, created_at, updated_at, deleted_at, version,
                 entry_time, restored_at, restored_into_id
             )
             SELECT
                 id, entry_date, title, content_md, mood, weather, location_name,
-                is_favorite, word_count, created_at, updated_at, deleted_at, version,
+                is_favorite, word_count, reminder_minutes, created_at, updated_at, deleted_at, version,
                 entry_time, restored_at, restored_into_id
             FROM diaries
             WHERE id IS NOT NULL

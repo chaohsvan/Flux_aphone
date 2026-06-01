@@ -1,6 +1,13 @@
 package com.example.flux.feature.settings.presentation
 
+import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,8 +28,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,6 +48,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +57,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.flux.core.sync.WebDavSyncConfig
 import com.example.flux.core.sync.JIANGUOYUN_WEBDAV_URL
@@ -71,6 +84,7 @@ fun SettingsScreen(
     var showCloudRestoreConfirm by remember { mutableStateOf(false) }
     var incrementalCloudRestore by remember { mutableStateOf(false) }
     var showWeekStartDialog by remember { mutableStateOf(false) }
+    var reminderPermissionState by remember { mutableStateOf(ReminderPermissionState.from(context)) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip"),
@@ -92,6 +106,20 @@ fun SettingsScreen(
             if (uri != null) pendingImportUri = uri
         }
     )
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = {
+            reminderPermissionState = ReminderPermissionState.from(context)
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        reminderPermissionState = ReminderPermissionState.from(context)
+    }
+    LifecycleResumeEffect(Unit) {
+        reminderPermissionState = ReminderPermissionState.from(context)
+        onPauseOrDispose {}
+    }
 
     Scaffold(
         topBar = {
@@ -215,6 +243,17 @@ fun SettingsScreen(
             ReminderSoundSetting(
                 enabled = uiState.reminderSoundEnabled,
                 onEnabledChange = viewModel::setReminderSoundEnabled
+            )
+            ReminderPermissionSetting(
+                state = reminderPermissionState,
+                onRequestNotificationPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                },
+                onOpenExactAlarmSettings = {
+                    context.startActivity(exactAlarmSettingsIntent(context))
+                }
             )
         }
     }
@@ -360,6 +399,95 @@ fun SettingsScreen(
                 showWeekStartDialog = false
             }
         )
+    }
+}
+
+@Composable
+private fun ReminderPermissionSetting(
+    state: ReminderPermissionState,
+    onRequestNotificationPermission: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit
+) {
+    val missingNotification = !state.notificationsEnabled
+    val missingExactAlarm = !state.exactAlarmsEnabled
+    ListItem(
+        headlineContent = { Text("提醒权限") },
+        supportingContent = {
+            Column {
+                Text(
+                    when {
+                        missingNotification && missingExactAlarm -> "通知和准点提醒尚未完全开启"
+                        missingNotification -> "通知未开启，提醒可能不会显示"
+                        missingExactAlarm -> "准点提醒未开启，提醒时间可能有延迟"
+                        else -> "通知和准点提醒已开启"
+                    }
+                )
+                if (missingNotification || missingExactAlarm) {
+                    Column(
+                        modifier = Modifier.padding(top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (missingNotification) {
+                            AssistChip(
+                                onClick = onRequestNotificationPermission,
+                                label = { Text("开启通知") }
+                            )
+                        }
+                        if (missingExactAlarm) {
+                            AssistChip(
+                                onClick = onOpenExactAlarmSettings,
+                                label = { Text("开启准点提醒") }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        leadingContent = {
+            Icon(
+                Icons.Default.Notifications,
+                contentDescription = null,
+                tint = if (missingNotification || missingExactAlarm) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                }
+            )
+        }
+    )
+}
+
+private data class ReminderPermissionState(
+    val notificationsEnabled: Boolean,
+    val exactAlarmsEnabled: Boolean
+) {
+    companion object {
+        fun from(context: Context): ReminderPermissionState {
+            val notificationsEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            val exactAlarmsEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                alarmManager.canScheduleExactAlarms()
+            return ReminderPermissionState(
+                notificationsEnabled = notificationsEnabled,
+                exactAlarmsEnabled = exactAlarmsEnabled
+            )
+        }
+    }
+}
+
+private fun exactAlarmSettingsIntent(context: Context): Intent {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+            data = "package:${context.packageName}".toUri()
+        }
+    } else {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = "package:${context.packageName}".toUri()
+        }
     }
 }
 

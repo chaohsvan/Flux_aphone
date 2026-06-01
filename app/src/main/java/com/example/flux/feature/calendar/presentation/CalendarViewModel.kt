@@ -271,12 +271,13 @@ class CalendarViewModel @Inject constructor(
                     val isHoliday = override?.isHoliday ?: defaultHoliday
                     CalendarDateDetails(
                         diary = diary,
+                        diaryReminderMinutes = diary?.reminderMinutes,
                         todos = todos.filter { it.occursOn(date) },
                         events = events.filter { it.occursOn(date) },
                         isHoliday = isHoliday,
                         holidayLabel = override?.label ?: if (defaultHoliday) "\u5468\u672b\u5047\u671f" else null,
                         deletedDiaries = deletedDiaries.filter { it.entryDate == date },
-            deletedTodos = deletedTodos.filter { TimeUtil.localDatePart(it.dueAt) == date },
+                        deletedTodos = deletedTodos.filter { TimeUtil.localDatePart(it.dueAt) == date },
                         deletedEvents = deletedEvents.filter { it.startAt.take(10) == date }
                     )
                 }
@@ -671,4 +672,3 @@ class CalendarViewModel @Inject constructor(
         return startAt.take(10)
     }
 }
-

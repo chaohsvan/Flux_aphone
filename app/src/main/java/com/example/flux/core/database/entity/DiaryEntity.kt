@@ -24,6 +24,7 @@ data class DiaryEntity(
     @ColumnInfo(name = "location_name") val locationName: String?,
     @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Int = 0,
     @ColumnInfo(name = "word_count", defaultValue = "0") val wordCount: Int = 0,
+    @ColumnInfo(name = "reminder_minutes") val reminderMinutes: Int?,
     @ColumnInfo(name = "created_at") val createdAt: String,
     @ColumnInfo(name = "updated_at") val updatedAt: String,
     @ColumnInfo(name = "deleted_at") val deletedAt: String?,

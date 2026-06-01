@@ -4,18 +4,39 @@ import android.app.Application
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.example.flux.core.database.FluxPrepackagedDatabaseNormalizer
+import com.example.flux.core.reminder.ReminderRescheduler
 import com.example.flux.core.sync.IcsSyncWorker
 import com.example.flux.core.util.DataDirectoryInitializer
 import com.example.flux.core.util.DataPaths
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class FluxApplication : Application() {
+    @Inject
+    lateinit var reminderRescheduler: ReminderRescheduler
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         DataDirectoryInitializer.ensure(this)
         normalizeExistingPrepackagedDatabase()
         IcsSyncWorker.schedule(this)
+        rescheduleReminders()
+    }
+
+    private fun rescheduleReminders() {
+        applicationScope.launch {
+            runCatching { reminderRescheduler.rescheduleAll() }
+                .onFailure { throwable ->
+                    Log.w("FluxApplication", "Unable to reschedule reminders", throwable)
+                }
+        }
     }
 
     private fun normalizeExistingPrepackagedDatabase() {

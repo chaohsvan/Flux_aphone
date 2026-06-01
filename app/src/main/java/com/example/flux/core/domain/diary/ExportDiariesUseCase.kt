@@ -129,6 +129,7 @@ private fun List<DiaryExportRecord>.toJson(): String {
                 .put("location_name", diary.locationName)
                 .put("is_favorite", diary.isFavorite == 1)
                 .put("word_count", diary.wordCount)
+                .put("reminder_minutes", diary.reminderMinutes)
                 .put("created_at", diary.createdAt)
                 .put("updated_at", diary.updatedAt)
                 .put("tags", JSONArray(record.tags.map { it.name }))
@@ -139,7 +140,7 @@ private fun List<DiaryExportRecord>.toJson(): String {
 
 private fun List<DiaryExportRecord>.toCsv(): String {
     val rows = mutableListOf(
-        listOf("entry_date", "entry_time", "title", "mood", "weather", "location_name", "is_favorite", "tags", "content_md")
+        listOf("entry_date", "entry_time", "title", "mood", "weather", "location_name", "is_favorite", "reminder_minutes", "tags", "content_md")
     )
     forEach { record ->
         val diary = record.diary
@@ -151,6 +152,7 @@ private fun List<DiaryExportRecord>.toCsv(): String {
             diary.weather.orEmpty(),
             diary.locationName.orEmpty(),
             (diary.isFavorite == 1).toString(),
+            diary.reminderMinutes?.toString().orEmpty(),
             record.tags.joinToString("|") { it.name },
             diary.contentMd
         )
@@ -170,6 +172,7 @@ private fun List<DiaryExportRecord>.toMarkdown(): String {
                 diary.mood?.let { "心情：$it" },
                 diary.weather?.let { "天气：$it" },
                 diary.locationName?.let { "位置：$it" },
+                diary.reminderMinutes?.let { "提前 $it 分钟提醒" },
                 record.tags.takeIf { it.isNotEmpty() }?.joinToString("、", prefix = "标签：") { it.name },
                 if (diary.isFavorite == 1) "收藏" else null
             )

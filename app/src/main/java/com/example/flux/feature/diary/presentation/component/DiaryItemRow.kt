@@ -115,6 +115,15 @@ fun DiaryItemRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            diary.reminderMinutes?.let {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "提前 $it 分钟提醒",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

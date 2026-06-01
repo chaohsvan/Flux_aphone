@@ -122,6 +122,14 @@ fun CalendarDayTimelineView(
                         color = FluxDiaryYellow,
                         onClick = { onWriteDiary(diary.id) }
                     )
+                    if (details.diaryReminderMinutes != null) {
+                        Text(
+                            text = "提前 ${details.diaryReminderMinutes} 分钟提醒",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 76.dp, top = 4.dp)
+                        )
+                    }
                 }
             }
             items(allDayEvents, key = { it.id }) { event ->
@@ -401,6 +409,14 @@ fun CalendarDateDetailsSheet(
                     color = FluxDiaryYellow,
                     onClick = { onWriteDiary(details.diary.id) }
                 )
+                details.diaryReminderMinutes?.let { reminderMinutes ->
+                    Text(
+                        text = "提前 $reminderMinutes 分钟提醒",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 18.dp, top = 4.dp)
+                    )
+                }
             }
 
             if (details.todos.isNotEmpty()) {

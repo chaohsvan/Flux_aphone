@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_PATH = ROOT / "app" / "schemas" / "com.example.flux.core.database.FluxDatabase" / "10.json"
+SCHEMA_PATH = ROOT / "app" / "schemas" / "com.example.flux.core.database.FluxDatabase" / "11.json"
 OUTPUT_ROOT = ROOT / "testdata" / "backups" / "flux_time_todo_diary"
 DATA_DIR = OUTPUT_ROOT / "data"
 DB_PATH = DATA_DIR / "flux.db"
@@ -33,7 +33,7 @@ def main() -> None:
         seed_diaries(conn)
         seed_todos(conn)
         seed_calendar_events(conn)
-        conn.execute("PRAGMA user_version=10")
+        conn.execute("PRAGMA user_version=11")
         conn.commit()
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     create_zip()
@@ -71,6 +71,7 @@ def seed_diaries(conn: sqlite3.Connection) -> None:
         mood = MOODS[index % len(MOODS)]
         weather = WEATHERS[index % len(WEATHERS)]
         location = LOCATIONS[index % len(LOCATIONS)]
+        reminder_minutes = 15 if index % 6 == 0 else (45 if index % 11 == 0 else None)
         content = "\n".join(
             [
                 f"这是第 {index + 1} 篇用于导入测试的日记。",
@@ -95,6 +96,7 @@ def seed_diaries(conn: sqlite3.Connection) -> None:
             location,
             1 if index % 5 == 0 else 0,
             len(content),
+            reminder_minutes,
             created_at,
             updated_at,
             deleted_at,
@@ -122,9 +124,9 @@ def seed_diaries(conn: sqlite3.Connection) -> None:
         """
         INSERT INTO diaries (
             id, entry_date, entry_time, title, content_md, mood, weather, location_name,
-            is_favorite, word_count, created_at, updated_at, deleted_at, version,
+            is_favorite, word_count, reminder_minutes, created_at, updated_at, deleted_at, version,
             restored_at, restored_into_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )

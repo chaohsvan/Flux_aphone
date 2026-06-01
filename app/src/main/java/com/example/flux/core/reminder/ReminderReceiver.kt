@@ -1,22 +1,27 @@
 package com.example.flux.core.reminder
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.example.flux.MainActivity
 import com.example.flux.R
 import com.example.flux.core.settings.AppPreferences
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (!canPostNotifications(context)) return
+
         val id = intent.getStringExtra(EXTRA_ID).orEmpty()
         val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
         val title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "Flux 提醒" }
@@ -53,6 +58,14 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun canPostNotifications(context: Context): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -61,7 +74,7 @@ class ReminderReceiver : BroadcastReceiver() {
             "Flux \u63d0\u9192",
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "\u5f85\u529e\u548c\u65e5\u5386\u4e8b\u4ef6\u63d0\u9192"
+            description = "\u65e5\u8bb0\u3001\u5f85\u529e\u548c\u65e5\u5386\u4e8b\u4ef6\u63d0\u9192"
             setSound(
                 Settings.System.DEFAULT_NOTIFICATION_URI,
                 AudioAttributes.Builder()
@@ -75,7 +88,7 @@ class ReminderReceiver : BroadcastReceiver() {
             "Flux \u63d0\u9192\uff08\u9759\u97f3\uff09",
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "\u5f85\u529e\u548c\u65e5\u5386\u4e8b\u4ef6\u9759\u97f3\u63d0\u9192"
+            description = "\u65e5\u8bb0\u3001\u5f85\u529e\u548c\u65e5\u5386\u4e8b\u4ef6\u9759\u97f3\u63d0\u9192"
             setSound(null, null)
         }
         manager.createNotificationChannel(soundChannel)

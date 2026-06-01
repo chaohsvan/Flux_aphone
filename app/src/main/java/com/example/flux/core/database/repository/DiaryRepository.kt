@@ -5,12 +5,14 @@ import com.example.flux.core.database.entity.DiaryEntity
 import com.example.flux.core.database.entity.DiaryTagEntity
 import com.example.flux.core.database.entity.DiaryTagLinkEntity
 import com.example.flux.core.database.entity.DiaryTagSummary
+import com.example.flux.core.reminder.ReminderScheduler
 import com.example.flux.core.util.TimeUtil
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
 class DiaryRepository @Inject constructor(
-    private val diaryDao: DiaryDao
+    private val diaryDao: DiaryDao,
+    private val reminderScheduler: ReminderScheduler
 ) {
     fun getActiveDiaries(): Flow<List<DiaryEntity>> {
         return diaryDao.getActiveDiaries()
@@ -73,6 +75,7 @@ class DiaryRepository @Inject constructor(
                     locationName = diary.locationName,
                     isFavorite = diary.isFavorite,
                     wordCount = diary.wordCount,
+                    reminderMinutes = diary.reminderMinutes,
                     updatedAt = diary.updatedAt,
                     version = maxOf(existing.version, diary.version)
                 ),
@@ -89,18 +92,21 @@ class DiaryRepository @Inject constructor(
             updateDiaryTags(diary.id, tagNames)
         }
         syncDiaryFts(diary)
+        reminderScheduler.scheduleDiary(diary)
     }
 
     suspend fun softDeleteDiary(id: String) {
         val timestamp = com.example.flux.core.util.TimeUtil.getCurrentIsoTime()
         diaryDao.softDeleteDiary(id, timestamp)
         diaryDao.deleteDiaryFts(id)
+        reminderScheduler.cancelDiary(id)
     }
 
     suspend fun permanentlyDeleteDiary(id: String) {
         diaryDao.deleteDiaryFts(id)
         diaryDao.permanentlyDeleteDiaryTagLinks(id)
         diaryDao.permanentlyDeleteDiary(id)
+        reminderScheduler.cancelDiary(id)
     }
 
     private suspend fun updateDiaryTags(diaryId: String, tagNames: List<String>) {

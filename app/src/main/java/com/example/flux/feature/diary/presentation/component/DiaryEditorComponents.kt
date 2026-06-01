@@ -14,6 +14,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.TextFieldValue
 import com.example.flux.core.ui.DateField
@@ -107,6 +108,7 @@ fun DiaryMetadataEditor(
     uiState: DiaryEditorUiState,
     onDateChange: (String) -> Unit,
     onTimeChange: (String) -> Unit,
+    onReminderChange: (String) -> Unit,
     onMoodChange: (String?) -> Unit,
     onWeatherChange: (String) -> Unit,
     onLocationChange: (String) -> Unit,
@@ -132,6 +134,18 @@ fun DiaryMetadataEditor(
                 modifier = Modifier.weight(1f)
             )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = uiState.reminderMinutesText,
+            onValueChange = onReminderChange,
+            label = { Text("提前提醒分钟") },
+            placeholder = { Text("留空不提醒") },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 

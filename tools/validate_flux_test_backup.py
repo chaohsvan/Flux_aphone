@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_PATH = ROOT / "app" / "schemas" / "com.example.flux.core.database.FluxDatabase" / "10.json"
+SCHEMA_PATH = ROOT / "app" / "schemas" / "com.example.flux.core.database.FluxDatabase" / "11.json"
 BACKUP_PATH = ROOT / "testdata" / "backups" / "flux_time_todo_diary.zip"
 MERGE_TABLES = [
     "calendar_static_holidays",
@@ -36,7 +36,7 @@ MERGE_TABLES = [
 def main() -> None:
     if not BACKUP_PATH.is_file():
         subprocess.run([sys.executable, str(ROOT / 'tools' / 'generate_flux_test_backup.py')], check=True)
-    with tempfile.TemporaryDirectory(prefix="flux_import_test_", ignore_cleanup_errors=True) as temp_name:
+    with tempfile.TemporaryDirectory(prefix="flux_import_test_") as temp_name:
         temp_root = Path(temp_name)
         staged_db = extract_like_import_use_case(temp_root)
         validate_backup_database(staged_db)
@@ -69,7 +69,7 @@ def extract_like_import_use_case(temp_root: Path) -> Path:
 def validate_backup_database(db_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
         expected_counts = {
             "diaries": 72,
             "diary_search_index": 67,
@@ -90,6 +90,7 @@ def validate_backup_database(db_path: Path) -> None:
         assert conn.execute("SELECT COUNT(*) FROM todos WHERE due_at IS NULL").fetchone()[0] > 0
         assert conn.execute("SELECT COUNT(*) FROM todos WHERE start_at IS NULL").fetchone()[0] > 0
         assert conn.execute("SELECT COUNT(*) FROM todos WHERE reminder_minutes IS NOT NULL").fetchone()[0] > 0
+        assert conn.execute("SELECT COUNT(*) FROM diaries WHERE reminder_minutes IS NOT NULL").fetchone()[0] > 0
         assert conn.execute("SELECT COUNT(*) FROM calendar_events WHERE recurrence_rule IS NOT NULL").fetchone()[0] > 0
         assert conn.execute("SELECT COUNT(*) FROM diaries WHERE deleted_at IS NOT NULL").fetchone()[0] > 0
 
@@ -180,4 +181,3 @@ def escape_path(path: Path) -> str:
 
 if __name__ == "__main__":
     main()
-

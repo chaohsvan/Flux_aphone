@@ -88,6 +88,7 @@ data class CalendarMonth(
 
 data class CalendarDateDetails(
     val diary: DiaryEntity? = null,
+    val diaryReminderMinutes: Int? = null,
     val todos: List<TodoEntity> = emptyList(),
     val events: List<CalendarEventEntity> = emptyList(),
     val isHoliday: Boolean = false,
