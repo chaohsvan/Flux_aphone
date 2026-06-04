@@ -7,6 +7,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,8 +35,20 @@ import com.example.flux.feature.trash.presentation.AttachmentManagerScreen
 import com.example.flux.feature.trash.presentation.TrashScreen
 
 @Composable
-fun FluxAppNavHost() {
+fun FluxAppNavHost(destinationLaunchRequest: AppDestinationLaunchRequest? = null) {
     val navController = rememberNavController()
+
+    LaunchedEffect(destinationLaunchRequest?.id) {
+        if (destinationLaunchRequest != null && navController.currentDestination?.route != AppRoutes.MAIN) {
+            navController.navigate(AppRoutes.MAIN) {
+                popUpTo(AppRoutes.MAIN) {
+                    inclusive = false
+                }
+                launchSingleTop = true
+                restoreState = false
+            }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -73,7 +86,8 @@ fun FluxAppNavHost() {
                 },
                 onNavigateToWeatherAppBinding = {
                     navController.navigate(AppRoutes.WEATHER_APP_BINDING)
-                }
+                },
+                destinationLaunchRequest = destinationLaunchRequest
             )
         }
         composable(
@@ -136,9 +150,12 @@ private fun FluxMainScaffold(
     onNavigateToAttachmentManager: (String) -> Unit,
     onNavigateToTodoDetail: (String) -> Unit,
     onNavigateToCalendarSubscriptions: () -> Unit,
-    onNavigateToWeatherAppBinding: () -> Unit
+    onNavigateToWeatherAppBinding: () -> Unit,
+    destinationLaunchRequest: AppDestinationLaunchRequest?
 ) {
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.DIARY) }
+    var currentDestination by rememberSaveable {
+        mutableStateOf(destinationLaunchRequest?.destination ?: AppDestinations.DIARY)
+    }
     var showGlobalSearch by rememberSaveable { mutableStateOf(false) }
     var calendarFocusDate by rememberSaveable { mutableStateOf<String?>(null) }
     var lastBackPressTime by rememberSaveable { mutableStateOf(0L) }
@@ -148,6 +165,13 @@ private fun FluxMainScaffold(
     val searchQuery by globalSearchViewModel.query.collectAsState()
     val searchScope by globalSearchViewModel.scope.collectAsState()
     val searchResults by globalSearchViewModel.results.collectAsState()
+
+    LaunchedEffect(destinationLaunchRequest?.id) {
+        destinationLaunchRequest?.let { request ->
+            currentDestination = request.destination
+            showGlobalSearch = false
+        }
+    }
 
     BackHandler(enabled = !showGlobalSearch) {
         val now = System.currentTimeMillis()

@@ -4,6 +4,24 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object FluxPrepackagedDatabaseNormalizer {
+    private data class CompatibilityColumn(
+        val table: String,
+        val column: String,
+        val definition: String
+    )
+
+    private val PRE_NORMALIZATION_COLUMNS = listOf(
+        CompatibilityColumn("diaries", "entry_time", "TEXT"),
+        CompatibilityColumn("diaries", "reminder_minutes", "INTEGER"),
+        CompatibilityColumn("diaries", "restored_at", "TEXT"),
+        CompatibilityColumn("diaries", "restored_into_id", "TEXT"),
+        CompatibilityColumn("todos", "is_my_day", "INTEGER NOT NULL DEFAULT 0"),
+        CompatibilityColumn("todos", "is_important", "INTEGER NOT NULL DEFAULT 0"),
+        CompatibilityColumn("todos", "reminder_minutes", "INTEGER"),
+        CompatibilityColumn("calendar_events", "reminder_minutes", "INTEGER"),
+        CompatibilityColumn("calendar_events", "recurrence_rule", "TEXT")
+    )
+
     private val USER_DATA_TABLES = listOf(
         "attachment_metadata",
         "calendar_events",
@@ -21,7 +39,12 @@ object FluxPrepackagedDatabaseNormalizer {
     )
 
     fun normalize(db: SupportSQLiteDatabase) {
-        normalizeWith { sql -> db.execSQL(sql) }
+        normalizeWith(
+            exec = { sql -> db.execSQL(sql) },
+            ensureColumn = { table, column, definition ->
+                db.ensureColumn(table, column, definition)
+            }
+        )
     }
 
     fun purgeSeededUserData(db: SupportSQLiteDatabase) {
@@ -43,7 +66,12 @@ object FluxPrepackagedDatabaseNormalizer {
     }
 
     fun normalize(db: SQLiteDatabase) {
-        normalizeWith { sql -> db.execSQL(sql) }
+        normalizeWith(
+            exec = { sql -> db.execSQL(sql) },
+            ensureColumn = { table, column, definition ->
+                db.ensureColumn(table, column, definition)
+            }
+        )
     }
 
     fun rebuildDiarySearchIndex(db: SupportSQLiteDatabase) {
@@ -56,10 +84,61 @@ object FluxPrepackagedDatabaseNormalizer {
         }
     }
 
-    private fun normalizeWith(exec: (String) -> Unit) {
+    private fun SupportSQLiteDatabase.ensureColumn(table: String, column: String, definition: String) {
+        if (!tableExists(table) || columnExists(table, column)) return
+        execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+    }
+
+    private fun SupportSQLiteDatabase.columnExists(table: String, column: String): Boolean {
+        return query("PRAGMA table_info($table)").use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            var found = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == column) {
+                    found = true
+                    break
+                }
+            }
+            found
+        }
+    }
+
+    private fun SQLiteDatabase.ensureColumn(table: String, column: String, definition: String) {
+        if (!tableExists(table) || columnExists(table, column)) return
+        execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+    }
+
+    private fun SQLiteDatabase.tableExists(table: String): Boolean {
+        return rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(table)).use { cursor ->
+            cursor.moveToFirst()
+        }
+    }
+
+    private fun SQLiteDatabase.columnExists(table: String, column: String): Boolean {
+        return rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            var found = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == column) {
+                    found = true
+                    break
+                }
+            }
+            found
+        }
+    }
+
+    private fun normalizeWith(
+        exec: (String) -> Unit,
+        ensureColumn: (table: String, column: String, definition: String) -> Unit
+    ) {
         exec("PRAGMA foreign_keys=OFF")
         exec("BEGIN TRANSACTION")
         try {
+            // The prepackaged database callback runs before Room migrations.
+            PRE_NORMALIZATION_COLUMNS.forEach { column ->
+                ensureColumn(column.table, column.column, column.definition)
+            }
             rebuildDiaries(exec)
             rebuildDiaryTags(exec)
             rebuildDiaryTagLinks(exec)

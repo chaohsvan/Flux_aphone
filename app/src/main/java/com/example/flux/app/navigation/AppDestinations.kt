@@ -18,6 +18,20 @@ enum class AppDestinations(
     SETTINGS("\u8bbe\u7f6e", Icons.Default.Settings),
 }
 
+data class AppDestinationLaunchRequest(
+    val destination: AppDestinations,
+    val id: Long
+)
+
+object AppLaunchIntent {
+    const val ACTION_OPEN_DESTINATION = "com.example.flux.action.OPEN_DESTINATION"
+    const val EXTRA_DESTINATION = "com.example.flux.extra.DESTINATION"
+
+    fun destinationFrom(value: String?): AppDestinations? {
+        return AppDestinations.entries.firstOrNull { it.name == value }
+    }
+}
+
 object AppRoutes {
     const val MAIN = "main"
     const val TRASH = "trash"
