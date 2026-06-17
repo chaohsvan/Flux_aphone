@@ -118,12 +118,17 @@ class DefaultSettingsFeatureGateway @Inject constructor(
     }
 
     override suspend fun deleteCalendarSubscription(id: String) {
+        eventDao.getEventsBySubscription(id).forEach { event ->
+            reminderRescheduler.cancelEvent(event.id)
+        }
         eventDao.deleteExternalEventsBySubscription(id)
         calendarSubscriptionDao.deleteSubscription(id)
     }
 
     override suspend fun syncCalendarSubscription(id: String): IcsSyncResult {
-        return icsCalendarSyncUseCase.syncSubscription(id)
+        return icsCalendarSyncUseCase.syncSubscription(id).also {
+            reminderRescheduler.rescheduleAll()
+        }
     }
 
     override suspend fun exportBackup(context: Context, uri: Uri) {
@@ -131,6 +136,9 @@ class DefaultSettingsFeatureGateway @Inject constructor(
     }
 
     override suspend fun importBackup(context: Context, uri: Uri, mode: ImportBackupMode) {
+        if (mode == ImportBackupMode.Replace) {
+            reminderRescheduler.cancelAllKnown()
+        }
         importBackupUseCase(context, uri, mode)
         if (mode == ImportBackupMode.Merge) {
             reminderRescheduler.rescheduleAll()
@@ -142,6 +150,9 @@ class DefaultSettingsFeatureGateway @Inject constructor(
     }
 
     override suspend fun restoreFromCloud(mode: ImportBackupMode): CloudBackupResult {
+        if (mode == ImportBackupMode.Replace) {
+            reminderRescheduler.cancelAllKnown()
+        }
         val result = cloudBackupManager.restoreLatest(mode)
         if (mode == ImportBackupMode.Merge) {
             reminderRescheduler.rescheduleAll()

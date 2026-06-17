@@ -39,6 +39,9 @@ interface TodoDao {
     @Query("SELECT * FROM todos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
     fun getDeletedTodos(): Flow<List<TodoEntity>>
 
+    @Query("SELECT * FROM todos")
+    suspend fun getAllTodosSnapshot(): List<TodoEntity>
+
     @Query("SELECT * FROM todos WHERE id = :id LIMIT 1")
     suspend fun getTodoById(id: String): TodoEntity?
 

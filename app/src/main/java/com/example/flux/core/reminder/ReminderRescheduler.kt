@@ -5,7 +5,6 @@ import com.example.flux.core.database.dao.EventDao
 import com.example.flux.core.database.dao.TodoDao
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.flow.first
 
 @Singleton
 class ReminderRescheduler @Inject constructor(
@@ -14,17 +13,48 @@ class ReminderRescheduler @Inject constructor(
     private val eventDao: EventDao,
     private val reminderScheduler: ReminderScheduler
 ) {
+    suspend fun cancelAllKnown() {
+        diaryDao.getAllDiariesSnapshot().forEach { diary ->
+            reminderScheduler.cancelDiary(diary.id)
+        }
+        todoDao.getAllTodosSnapshot().forEach { todo ->
+            reminderScheduler.cancelTodo(todo.id)
+        }
+        eventDao.getAllEventsSnapshot().forEach { event ->
+            reminderScheduler.cancelEvent(event.id)
+        }
+    }
+
+    fun cancelEvent(id: String) {
+        reminderScheduler.cancelEvent(id)
+    }
+
     suspend fun rescheduleAll() {
-        diaryDao.getActiveDiaries()
-            .first()
-            .forEach(reminderScheduler::scheduleDiary)
+        diaryDao.getAllDiariesSnapshot()
+            .forEach { diary ->
+                if (ReminderPlanner.diaryPlan(diary) == null) {
+                    reminderScheduler.cancelDiary(diary.id)
+                } else {
+                    reminderScheduler.scheduleDiary(diary)
+                }
+            }
 
-        todoDao.getActiveTodos()
-            .first()
-            .forEach(reminderScheduler::scheduleTodo)
+        todoDao.getAllTodosSnapshot()
+            .forEach { todo ->
+                if (ReminderPlanner.todoPlan(todo) == null) {
+                    reminderScheduler.cancelTodo(todo.id)
+                } else {
+                    reminderScheduler.scheduleTodo(todo)
+                }
+            }
 
-        eventDao.getActiveEvents()
-            .first()
-            .forEach(reminderScheduler::scheduleEvent)
+        eventDao.getAllEventsSnapshot()
+            .forEach { event ->
+                if (ReminderPlanner.eventPlan(event) == null) {
+                    reminderScheduler.cancelEvent(event.id)
+                } else {
+                    reminderScheduler.scheduleEvent(event)
+                }
+            }
     }
 }

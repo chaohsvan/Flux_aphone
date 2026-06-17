@@ -16,17 +16,83 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.flux.MainActivity
 import com.example.flux.R
+import com.example.flux.core.database.FluxDatabase
 import com.example.flux.core.settings.AppPreferences
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (!canPostNotifications(context)) return
-
         val id = intent.getStringExtra(EXTRA_ID).orEmpty()
         val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
-        val title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "Flux 提醒" }
-        val message = intent.getStringExtra(EXTRA_MESSAGE).orEmpty().ifBlank { "有一条待处理事项" }
+        val triggerAtMillis = intent.getLongExtra(EXTRA_TRIGGER_AT_MILLIS, -1L)
+        if (id.isBlank() || type.isBlank() || triggerAtMillis <= 0L) return
 
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                handleReminder(context.applicationContext, type, id, triggerAtMillis)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
+    private suspend fun handleReminder(
+        context: Context,
+        type: String,
+        id: String,
+        triggerAtMillis: Long
+    ) {
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            ReminderReceiverEntryPoint::class.java
+        )
+        val database = entryPoint.fluxDatabase()
+        val reminder = currentReminder(database, type, id, triggerAtMillis) ?: return
+
+        if (canPostNotifications(context)) {
+            withContext(Dispatchers.Main) {
+                postNotification(context, type, id, reminder.title, reminder.message)
+            }
+        }
+
+        if (type == ReminderContract.TYPE_EVENT) {
+            database.eventDao().getEventById(id)?.let { entryPoint.reminderScheduler().scheduleEvent(it) }
+        }
+    }
+
+    private suspend fun currentReminder(
+        database: FluxDatabase,
+        type: String,
+        id: String,
+        triggerAtMillis: Long
+    ): ReminderPlan? {
+        return when (type) {
+            ReminderContract.TYPE_DIARY -> database.diaryDao().getDiaryById(id)
+                ?.let { ReminderPlanner.diaryPlanAtTrigger(it, triggerAtMillis) }
+            ReminderContract.TYPE_TODO -> database.todoDao().getTodoById(id)
+                ?.let { ReminderPlanner.todoPlanAtTrigger(it, triggerAtMillis) }
+            ReminderContract.TYPE_EVENT -> database.eventDao().getEventById(id)
+                ?.let { ReminderPlanner.eventPlanAtTrigger(it, triggerAtMillis) }
+            else -> null
+        }
+    }
+
+    private fun postNotification(
+        context: Context,
+        type: String,
+        id: String,
+        title: String,
+        message: String
+    ) {
         val soundEnabled = AppPreferences(context).isReminderSoundEnabled()
         val channelId = if (soundEnabled) CHANNEL_ID_SOUND else CHANNEL_ID_SILENT
 
@@ -102,20 +168,30 @@ class ReminderReceiver : BroadcastReceiver() {
         private const val EXTRA_ID = "id"
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_MESSAGE = "message"
+        private const val EXTRA_TRIGGER_AT_MILLIS = "trigger_at_millis"
 
         fun intent(
             context: Context,
             type: String,
             id: String,
             title: String,
-            message: String
+            message: String,
+            triggerAtMillis: Long = -1L
         ): Intent {
             return Intent(context, ReminderReceiver::class.java).apply {
                 putExtra(EXTRA_TYPE, type)
                 putExtra(EXTRA_ID, id)
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_MESSAGE, message)
+                putExtra(EXTRA_TRIGGER_AT_MILLIS, triggerAtMillis)
             }
         }
     }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ReminderReceiverEntryPoint {
+    fun fluxDatabase(): FluxDatabase
+    fun reminderScheduler(): ReminderScheduler
 }

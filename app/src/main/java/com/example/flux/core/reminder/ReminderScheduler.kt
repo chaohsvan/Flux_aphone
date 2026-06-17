@@ -20,105 +20,75 @@ class ReminderScheduler @Inject constructor(
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
     fun scheduleDiary(diary: DiaryEntity) {
-        val reminderMinutes = diary.reminderMinutes
-        val triggerSource = ReminderTimeParser.diaryTriggerSource(diary.entryDate, diary.entryTime)
-        if (reminderMinutes == null || triggerSource.isNullOrBlank() || diary.deletedAt != null) {
+        val plan = ReminderPlanner.diaryPlan(diary)
+        if (plan == null) {
             cancelDiary(diary.id)
             return
         }
-
-        val triggerAt = ReminderTimeParser.toEpochMillisOrNull(triggerSource)
-            ?.minus(reminderMinutes.toLong() * MILLIS_PER_MINUTE)
-            ?: run {
-                cancelDiary(diary.id)
-                return
-            }
-        val message = diary.contentMd
-            .lineSequence()
-            .firstOrNull { it.isNotBlank() }
-            ?.take(120)
-            ?: "日记提醒"
         schedule(
-            requestCode = requestCode(REMINDER_TYPE_DIARY, diary.id),
-            triggerAtMillis = triggerAt,
+            requestCode = requestCode(ReminderContract.TYPE_DIARY, diary.id),
+            triggerAtMillis = plan.triggerAtMillis,
             intent = ReminderReceiver.intent(
                 context = context,
-                type = REMINDER_TYPE_DIARY,
+                type = ReminderContract.TYPE_DIARY,
                 id = diary.id,
-                title = diary.title.ifBlank { "日记提醒" },
-                message = message
+                title = plan.title,
+                message = plan.message,
+                triggerAtMillis = plan.triggerAtMillis
             )
         )
     }
 
     fun cancelDiary(id: String) {
-        cancel(REMINDER_TYPE_DIARY, id)
+        cancel(ReminderContract.TYPE_DIARY, id)
     }
 
     fun scheduleTodo(todo: TodoEntity) {
-        val reminderMinutes = todo.reminderMinutes
-        val triggerSource = todo.dueAt ?: todo.startAt
-        if (
-            reminderMinutes == null ||
-            triggerSource.isNullOrBlank() ||
-            todo.deletedAt != null ||
-            todo.status == "completed"
-        ) {
+        val plan = ReminderPlanner.todoPlan(todo)
+        if (plan == null) {
             cancelTodo(todo.id)
             return
         }
-
-        val triggerAt = ReminderTimeParser.toEpochMillisOrNull(triggerSource)
-            ?.minus(reminderMinutes.toLong() * MILLIS_PER_MINUTE)
-            ?: run {
-                cancelTodo(todo.id)
-                return
-            }
         schedule(
-            requestCode = requestCode(REMINDER_TYPE_TODO, todo.id),
-            triggerAtMillis = triggerAt,
+            requestCode = requestCode(ReminderContract.TYPE_TODO, todo.id),
+            triggerAtMillis = plan.triggerAtMillis,
             intent = ReminderReceiver.intent(
                 context = context,
-                type = REMINDER_TYPE_TODO,
+                type = ReminderContract.TYPE_TODO,
                 id = todo.id,
-                title = todo.title,
-                message = todo.description.ifBlank { "待办提醒" }
+                title = plan.title,
+                message = plan.message,
+                triggerAtMillis = plan.triggerAtMillis
             )
         )
     }
 
     fun cancelTodo(id: String) {
-        cancel(REMINDER_TYPE_TODO, id)
+        cancel(ReminderContract.TYPE_TODO, id)
     }
 
     fun scheduleEvent(event: CalendarEventEntity) {
-        val reminderMinutes = event.reminderMinutes
-        if (reminderMinutes == null || event.deletedAt != null) {
+        val plan = ReminderPlanner.eventPlan(event)
+        if (plan == null) {
             cancelEvent(event.id)
             return
         }
-
-        val triggerAt = ReminderTimeParser.toEpochMillisOrNull(event.startAt)
-            ?.minus(reminderMinutes.toLong() * MILLIS_PER_MINUTE)
-            ?: run {
-                cancelEvent(event.id)
-                return
-            }
         schedule(
-            requestCode = requestCode(REMINDER_TYPE_EVENT, event.id),
-            triggerAtMillis = triggerAt,
+            requestCode = requestCode(ReminderContract.TYPE_EVENT, event.id),
+            triggerAtMillis = plan.triggerAtMillis,
             intent = ReminderReceiver.intent(
                 context = context,
-                type = REMINDER_TYPE_EVENT,
+                type = ReminderContract.TYPE_EVENT,
                 id = event.id,
-                title = event.title,
-                message = event.description.ifBlank { "日历事件提醒" }
+                title = plan.title,
+                message = plan.message,
+                triggerAtMillis = plan.triggerAtMillis
             )
         )
     }
 
     fun cancelEvent(id: String) {
-        cancel(REMINDER_TYPE_EVENT, id)
+        cancel(ReminderContract.TYPE_EVENT, id)
     }
 
     @SuppressLint("ScheduleExactAlarm")
@@ -165,12 +135,5 @@ class ReminderScheduler @Inject constructor(
 
     private fun canScheduleExactAlarm(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
-    }
-
-    private companion object {
-        const val REMINDER_TYPE_DIARY = "diary"
-        const val REMINDER_TYPE_TODO = "todo"
-        const val REMINDER_TYPE_EVENT = "event"
-        const val MILLIS_PER_MINUTE = 60_000L
     }
 }

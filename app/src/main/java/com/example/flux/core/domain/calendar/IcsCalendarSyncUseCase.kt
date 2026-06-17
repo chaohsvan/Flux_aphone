@@ -4,6 +4,7 @@ import com.example.flux.core.database.dao.CalendarSubscriptionDao
 import com.example.flux.core.database.dao.EventDao
 import com.example.flux.core.database.entity.CalendarEventEntity
 import com.example.flux.core.database.entity.CalendarSubscriptionEntity
+import com.example.flux.core.reminder.ReminderScheduler
 import com.example.flux.core.util.TimeUtil
 import java.util.UUID
 import javax.inject.Inject
@@ -23,7 +24,8 @@ class IcsCalendarSyncUseCase @Inject constructor(
     private val subscriptionDao: CalendarSubscriptionDao,
     private val eventDao: EventDao,
     private val downloader: IcsCalendarDownloader,
-    private val parser: IcsCalendarParser
+    private val parser: IcsCalendarParser,
+    private val reminderScheduler: ReminderScheduler
 ) {
     suspend fun syncAllEnabled(): List<IcsSyncResult> = withContext(Dispatchers.IO) {
         subscriptionDao.getEnabledSubscriptions().mapNotNull { subscription ->
@@ -75,16 +77,18 @@ class IcsCalendarSyncUseCase @Inject constructor(
                 parsedEvents.forEach { parsed ->
                     val existing = existingByUid[parsed.uid]
                     if (existing == null) {
-                        eventDao.insertEvent(parsed.toEntity(subscription.id, now))
+                        val event = parsed.toEntity(subscription.id, now)
+                        eventDao.insertEvent(event)
+                        reminderScheduler.scheduleEvent(event)
                         inserted += 1
                     } else if (existing.externalHash != parsed.hash || existing.deletedAt != null) {
-                        eventDao.insertEvent(
-                            parsed.toEntity(subscription.id, existing.createdAt).copy(
-                                id = existing.id,
-                                version = existing.version + 1,
-                                updatedAt = now
-                            )
+                        val event = parsed.toEntity(subscription.id, existing.createdAt).copy(
+                            id = existing.id,
+                            version = existing.version + 1,
+                            updatedAt = now
                         )
+                        eventDao.insertEvent(event)
+                        reminderScheduler.scheduleEvent(event)
                         updated += 1
                     } else {
                         unchanged += 1
@@ -93,9 +97,13 @@ class IcsCalendarSyncUseCase @Inject constructor(
 
                 val staleUids = existingByUid.keys - parsedUids
                 if (parsedUids.isEmpty()) {
+                    existingByUid.values.forEach { event -> reminderScheduler.cancelEvent(event.id) }
                     eventDao.deleteExternalEventsBySubscription(subscription.id)
                 } else {
-                    staleUids.forEach { uid -> eventDao.deleteExternalEvent(subscription.id, uid) }
+                    staleUids.forEach { uid ->
+                        existingByUid[uid]?.let { event -> reminderScheduler.cancelEvent(event.id) }
+                        eventDao.deleteExternalEvent(subscription.id, uid)
+                    }
                 }
 
                 subscriptionDao.updateSyncMetadata(

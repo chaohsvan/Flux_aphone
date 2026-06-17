@@ -18,6 +18,9 @@ interface EventDao {
     @Query("SELECT * FROM calendar_events WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
     fun getDeletedEvents(): Flow<List<CalendarEventEntity>>
 
+    @Query("SELECT * FROM calendar_events")
+    suspend fun getAllEventsSnapshot(): List<CalendarEventEntity>
+
     @Query("SELECT * FROM calendar_events WHERE id = :id LIMIT 1")
     suspend fun getEventById(id: String): CalendarEventEntity?
 
