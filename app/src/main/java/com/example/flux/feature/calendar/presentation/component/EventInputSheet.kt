@@ -63,6 +63,14 @@ fun EventInputSheet(
 ) {
     val colorOptions = listOf("#4A90E2", "#E57373", "#66BB6A", "#FFB74D")
     val recurrenceOptions = listOf("none", "daily", "weekly", "monthly", "yearly")
+    val reminderOptions = listOf(
+        ReminderOption("不提醒", null),
+        ReminderOption("准时", 0),
+        ReminderOption("提前 5 分钟", 5),
+        ReminderOption("提前 10 分钟", 10),
+        ReminderOption("提前 30 分钟", 30),
+        ReminderOption("提前 1 小时", 60)
+    )
     val initialRecurrence = remember(event?.id) { RecurrenceUtil.parseSpec(event?.recurrenceRule) }
     var title by remember { mutableStateOf(event?.title.orEmpty()) }
     var description by remember { mutableStateOf(event?.description.orEmpty()) }
@@ -118,10 +126,23 @@ fun EventInputSheet(
                 Text("全天")
             }
 
+            Text("提醒", style = MaterialTheme.typography.titleMedium)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(reminderOptions) { option ->
+                    val selected = reminderMinutesText.toIntOrNull() == option.minutes ||
+                        (option.minutes == null && reminderMinutesText.isBlank())
+                    FilterChip(
+                        selected = selected,
+                        onClick = { reminderMinutesText = option.minutes?.toString().orEmpty() },
+                        label = { Text(option.label) }
+                    )
+                }
+            }
             OutlinedTextField(
                 value = reminderMinutesText,
                 onValueChange = { reminderMinutesText = it.filter(Char::isDigit).take(5) },
-                label = { Text("提前提醒分钟") },
+                label = { Text("自定义提前分钟") },
+                supportingText = { Text("留空为不提醒，0 为准时提醒") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -224,3 +245,8 @@ fun EventInputSheet(
         }
     }
 }
+
+private data class ReminderOption(
+    val label: String,
+    val minutes: Int?
+)
