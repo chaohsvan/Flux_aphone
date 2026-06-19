@@ -1,143 +1,277 @@
 # Flux Android - 本地数据库设计文档
 
-## 1. 数据库选型与准则
+## 1. 数据库定位
 
-Android 端的本地数据持久化选用 **Room Database**。
-作为 Flux 系统的唯一真实数据源（Single Source of Truth），本地数据库必须承担起保护数据一致性的最终责任。
-- 绝不依赖 UI 层保证约束（如“一天一篇主日记”必须在数据库事务和实体索引级别得到保障）。
-- 一切业务对象删除均采用**软删除（Soft Delete）**，便于历史找回。
-- 时间戳字段（如 `created_at`, `updated_at`, `deleted_at`）建议统一使用 `Long` (Unix Epoch 毫秒) 存储，由 TypeConverter 统一转换。
+Flux Android 端使用 Room / SQLite 作为本地唯一真实数据源。当前数据库版本为 `11`，schema 导出目录为：
 
-## 2. 核心实体模型设计 (Entity Mapping)
-
-基于原系统 SQLite 表结构，映射为 Room Entity。
-
-### 2.1 日记模块 (Diary)
-
-**主表 `diaries`**
-```kotlin
-@Entity(
-    tableName = "diaries",
-    indices = [
-        Index(value = ["entry_date"], unique = true) // 此处需配合业务逻辑保证活跃状态下的唯一性
-    ]
-)
-data class DiaryEntity(
-    @PrimaryKey val id: String,
-    @ColumnInfo(name = "entry_date") val entryDate: String, // YYYY-MM-DD
-    @ColumnInfo(name = "entry_time") val entryTime: String?, // HH:mm
-    val title: String,
-    @ColumnInfo(name = "content_md") val contentMd: String = "",
-    val mood: String?,
-    val weather: String?,
-    @ColumnInfo(name = "location_name") val locationName: String?,
-    @ColumnInfo(name = "is_favorite") val isFavorite: Boolean = false,
-    @ColumnInfo(name = "word_count") val wordCount: Int = 0,
-    
-    // 软删除与恢复逻辑字段
-    @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null,
-    @ColumnInfo(name = "restored_at") val restoredAt: Long? = null,
-    @ColumnInfo(name = "restored_into_id") val restoredIntoId: String? = null,
-    
-    @ColumnInfo(name = "created_at") val createdAt: Long,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long,
-    val version: Int = 1
-)
+```text
+app/schemas/com.example.flux.core.database.FluxDatabase/
 ```
 
-**标签及其多对多关联**
-```kotlin
-@Entity(tableName = "diary_tags")
-data class DiaryTagEntity(...)
+数据库文件位于 App 私有目录：
 
-@Entity(
-    tableName = "diary_tag_links",
-    primaryKeys = ["diary_id", "tag_id"]
-)
-data class DiaryTagLinkEntity(
-    @ColumnInfo(name = "diary_id") val diaryId: String,
-    @ColumnInfo(name = "tag_id") val tagId: String,
-    @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null
-)
+```text
+files/data/flux.db
 ```
 
-**全文检索虚拟表 (FTS5)**
-```kotlin
-@Entity(tableName = "diaries_fts")
-@Fts5(contentEntity = DiaryEntity::class)
-data class DiaryFtsEntity(
-    @ColumnInfo(name = "diary_id") val diaryId: String,
-    @ColumnInfo(name = "entry_date") val entryDate: String,
-    @ColumnInfo(name = "content_md") val contentMd: String,
-    val mood: String?,
-    val tags: String? // 组装好的标签字符串
-)
+设计准则：
+
+- 核心业务事实写入 SQLite，附件二进制文件保存在 `files/data/attachments/`。
+- 删除使用软删除字段 `deleted_at`，由回收站统一读取。
+- 时间字段当前统一保存为字符串，日期使用 `YYYY-MM-DD`，时间点使用项目内 `TimeUtil` 生成的 ISO 字符串。
+- 业务约束不能只依赖 UI，重要约束需要由索引、Repository 或 UseCase 兜底。
+- 备份恢复以 `data/` 目录为边界，数据库和附件一起打包。
+
+## 2. Entity 总览
+
+`FluxDatabase` 当前包含以下实体：
+
+| 表 | Entity | 说明 |
+| :--- | :--- | :--- |
+| `diaries` | `DiaryEntity` | 日记主体 |
+| `diary_search_index` | `DiaryFtsEntity` | App 维护的日记搜索索引 |
+| `diary_tags` | `DiaryTagEntity` | 日记标签 |
+| `diary_tag_links` | `DiaryTagLinkEntity` | 日记与标签多对多关联 |
+| `todo_projects` | `TodoProjectEntity` | 待办项目/分组 |
+| `todos` | `TodoEntity` | 待办主体 |
+| `todo_subtasks` | `TodoSubtaskEntity` | 子任务 |
+| `todo_history` | `TodoHistoryEntity` | 待办操作历史 |
+| `calendar_events` | `CalendarEventEntity` | 手动事件和 ICS 订阅事件 |
+| `calendar_holidays` | `CalendarHolidayOverrideEntity` | 用户节假日覆盖 |
+| `calendar_static_holidays` | `CalendarStaticHolidayEntity` | 静态节假日 |
+| `calendar_subscription` | `CalendarSubscriptionEntity` | ICS 日历订阅 |
+| `attachment_metadata` | `AttachmentMetadataEntity` | 附件索引和引用统计 |
+
+## 3. 日记模型
+
+### 3.1 `diaries`
+
+核心字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 主键 |
+| `entry_date` | 日记日期，`YYYY-MM-DD` |
+| `entry_time` | 可选时间 |
+| `title` | 兼容旧数据和列表展示，产品上不强调标题 |
+| `content_md` | Markdown 正文 |
+| `mood` / `weather` / `location_name` | 元数据 |
+| `is_favorite` | 收藏标记，`0/1` |
+| `word_count` | 正文字数 |
+| `reminder_minutes` | 提前提醒分钟数 |
+| `created_at` / `updated_at` / `deleted_at` | 审计与软删除 |
+| `restored_at` / `restored_into_id` | 合并恢复记录 |
+| `version` | 本地版本号 |
+
+索引：
+
+- `idx_diaries_date(entry_date, deleted_at)`
+- `idx_diaries_mood(mood, deleted_at)`
+- `idx_diaries_one_active_per_day(entry_date)`，唯一索引
+
+当前唯一索引会限制同一天出现多条日记记录。日记恢复合并逻辑用 `restored_at` 和 `restored_into_id` 保留来源记录状态，避免重复恢复。
+
+### 3.2 `diary_search_index`
+
+这是普通 Room 表，不是 FTS 虚拟表。它用于避免依赖 Android SQLite 可选 FTS 模块。
+
+字段覆盖：
+
+- `diary_id`
+- `entry_date`
+- `entry_time`
+- `title`
+- `content_md`
+- `mood`
+- `weather`
+- `location_name`
+- `tags`
+
+日记创建、更新、删除和恢复时由 Repository 维护索引内容。
+
+### 3.3 标签表
+
+`diary_tags` 保存标签本体，`diary_tag_links` 保存多对多关系。关联表以 `diary_id + tag_id` 为联合主键，并对 `tag_id + deleted_at` 建索引，便于按标签筛选活跃日记。
+
+## 4. 待办模型
+
+### 4.1 `todos`
+
+核心字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 主键 |
+| `project_id` | 所属项目/分组 |
+| `title` / `description` | 标题与描述 |
+| `status` | `pending` / `completed` |
+| `priority` | 当前使用 `none` / `normal` 等字符串兼容旧数据 |
+| `due_at` / `start_at` | 截止和开始时间 |
+| `completed_at` | 完成时间 |
+| `sort_order` | 手动排序 |
+| `is_my_day` | 我的 一天兼容字段，当前不是主要 UI 入口 |
+| `is_important` | 重要标记 |
+| `reminder_minutes` | 提前提醒分钟数 |
+| `deleted_at` | 软删除 |
+
+索引：
+
+- `idx_todos_due(due_at, status, deleted_at)`
+- `idx_todos_project(project_id, deleted_at)`
+- `idx_todos_status(status, deleted_at)`
+
+`project_id` 外键指向 `todo_projects.id`。
+
+### 4.2 子任务与历史
+
+`todo_subtasks` 通过 `todo_id` 关联待办，支持软删除和排序。
+
+`todo_history` 记录待办操作历史，字段包括：
+
+- `action`
+- `summary`
+- `payload_json`
+- `created_at`
+
+完成、重新打开、编辑等操作可通过历史表追踪。
+
+## 5. 日历模型
+
+### 5.1 `calendar_events`
+
+事件字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `title` / `description` | 标题与描述 |
+| `start_at` / `end_at` | 起止时间 |
+| `all_day` | 全天事件 |
+| `color` | 展示颜色 |
+| `location_name` | 地点 |
+| `reminder_minutes` | 提前提醒分钟数 |
+| `recurrence_rule` | 手动重复规则 |
+| `subscription_id` / `external_uid` / `external_hash` | ICS 订阅事件元数据 |
+| `deleted_at` | 软删除 |
+
+索引：
+
+- `idx_events_range(start_at, end_at, deleted_at)`
+- `idx_events_start(start_at, deleted_at)`
+- `idx_events_subscription(subscription_id, external_uid)`，唯一索引
+
+`subscription_id + external_uid` 用于保证 ICS 同一事件重复同步时可幂等更新。
+
+### 5.2 节假日
+
+`calendar_static_holidays` 保存静态节假日数据，字段包括日期、是否假日、名称、来源和更新时间。
+
+`calendar_holidays` 保存用户覆盖。日期是主键，用户覆盖优先级高于静态节假日和默认周末规则。
+
+### 5.3 ICS 订阅
+
+`calendar_subscription` 保存：
+
+- 订阅名称
+- ICS URL
+- 是否启用
+- 最近同步时间
+- ETag
+- Last-Modified
+- 最近错误
+
+后台同步会根据订阅元数据进行条件下载。
+
+## 6. 附件模型
+
+`attachment_metadata` 以 `relative_path` 为主键，不保存绝对路径。
+
+字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `relative_path` | 相对 `data/attachments` 的路径 |
+| `file_name` | 文件名 |
+| `kind` | 图片、音频、普通文件等类型 |
+| `size_bytes` | 文件大小 |
+| `modified_at` | 文件修改时间 |
+| `sha256` | 文件 hash |
+| `reference_count` | Markdown 引用次数 |
+| `last_scanned_at` | 最近扫描时间 |
+
+索引覆盖类型、大小、修改时间和 hash，支持附件管理筛选和排序。
+
+## 7. 关键一致性规则
+
+### 7.1 一天一篇日记
+
+产品模型是一日一篇主日记。保存日记时，Repository 会根据日期和 id 判断是创建、更新还是拒绝冲突。数据库唯一索引作为最后兜底。
+
+### 7.2 软删除
+
+普通列表查询默认过滤 `deleted_at IS NULL`。回收站查询 `deleted_at IS NOT NULL`，并排除已经合并恢复的来源日记。
+
+删除操作还需要同步处理：
+
+- 日记：更新搜索索引，取消提醒。
+- 待办：写入历史，取消提醒。
+- 事件：取消提醒。
+
+### 7.3 恢复
+
+恢复逻辑位于 use case：
+
+- `RestoreDiaryUseCase`
+- `RestoreTodoUseCase`
+- `RestoreEventUseCase`
+
+恢复后需要刷新搜索索引和重新安排有效提醒。
+
+### 7.4 ICS 同步
+
+ICS 同步按 `subscription_id + external_uid` 做幂等更新。外部事件从订阅中消失时，当前实现会删除对应订阅事件；如果订阅返回空事件集合，则会删除该订阅下已有外部事件。
+
+## 8. 迁移
+
+Room 数据库通过 `DatabaseModule` 注册迁移：
+
+- `1 -> 8`：旧库兼容、补齐源表、规范化预置库。
+- `2 -> 3`：重建待办历史表结构。
+- `3 -> 6`：重建日记搜索索引。
+- `6 -> 7`：新增静态节假日表。
+- `7 -> 8`：新增附件 metadata 表和索引。
+- `8 -> 9`：新增 ICS 订阅表和订阅事件字段。
+- `9 -> 10`：重建待办表，补齐开始时间、提醒、重要等字段约束。
+- `10 -> 11`：日记新增 `reminder_minutes` 并重建搜索索引。
+
+所有新增字段都应同步更新：
+
+- Entity
+- Dao / Repository
+- Room schema 导出
+- 迁移
+- 备份增量合并表或列兼容逻辑
+- 文档
+
+## 9. 备份与增量恢复
+
+导出备份前会执行 WAL checkpoint，然后把 `files/data/` 打包成 zip：
+
+```text
+data/flux.db
+data/attachments/...
 ```
 
-### 2.2 待办模块 (Todo)
+全量恢复：
 
-**主表 `todos`**
-```kotlin
-@Entity(tableName = "todos")
-data class TodoEntity(
-    @PrimaryKey val id: String,
-    @ColumnInfo(name = "project_id") val projectId: String?, // UI 显示为“标签”
-    val title: String,
-    val description: String = "",
-    val status: String = "pending", // pending, completed
-    val priority: String = "normal", // normal, high
-    @ColumnInfo(name = "due_at") val dueAt: Long?,
-    @ColumnInfo(name = "sort_order") val sortOrder: Int = 0,
-    @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null,
-    // ... 其他审计字段
-)
-```
+- 关闭数据库。
+- 备份当前 `data/` 为 `data_before_restore_*`。
+- 用备份包中的 `data/` 替换当前目录。
 
-**子任务 `todo_subtasks`**
-子任务与父任务是 `1对多` 关系，由 Room 的 `@Relation` 处理聚合查询。
+增量恢复：
 
-### 2.3 日历模块 (Calendar)
+- 备份当前 `data/`。
+- ATTACH 备份数据库。
+- 按主键删除本机同名记录后插入备份记录。
+- 合并附件文件，跳过数据库文件本身。
 
-包含 `calendar_events`（事件）、`calendar_holidays`（用户标记覆盖）与 `calendar_static_holidays`（静态库节假日）。
-
-## 3. 约束与一致性保障设计
-
-### 3.1 “一天一篇主日记” 的落地
-在 Android 原生端：
-1. **数据库兜底**：使用 Partial Index（如果 SQLite/Room 版本支持 `CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL`）。如果 Room 在注解支持上有局限，可以在 `DiaryDao` 中提供事务级别的 `upsertDiary` 方法。
-2. **Dao 事务保障**：
-```kotlin
-@Transaction
-suspend fun saveDiarySafe(diary: DiaryEntity) {
-    val existing = getActiveDiaryByDate(diary.entryDate)
-    if (existing != null && existing.id != diary.id) {
-        // 更新现有日记或处理冲突
-        updateDiary(...)
-    } else {
-        insertDiary(diary)
-    }
-}
-```
-
-### 3.2 回收站日记的合并恢复逻辑
-必须置于 `Domain Layer` (例如 `RestoreDiaryUseCase`) 内作为单事务执行：
-1. 判断当天是否已有未删除的活跃日记。
-2. 若无：清空该删除记录的 `deleted_at` 字段。
-3. 若有：将已删除日记的文本追加到当前活跃日记的 `content_md` 中，处理标签的去重并入；为原删除记录写入 `restored_at` 和 `restored_into_id`，使其彻底归档。
-
-### 3.3 已完成待办置底排序
-查询待办列表时，在 Room DAO 中强制要求排序规则：
-```sql
-SELECT * FROM todos 
-WHERE deleted_at IS NULL 
-ORDER BY 
-    CASE WHEN status = 'completed' THEN 1 ELSE 0 END ASC,
-    CASE WHEN priority = 'high' THEN 0 ELSE 1 END ASC,
-    due_at ASC,
-    sort_order ASC
-```
-
-## 4. 迁移与数据同步策略
-
-- **数据库迁移 (Migrations)**：务必预留良好的 Schema 版本管理策略。Room 提供了 `Migration` 类用于处理表结构的增删改。
-- **跨平台与迁移过渡**：若后续支持从原 Web 版本导入数据，需支持读取原有 JSON 或 CSV 并进行完整的数据批量映射，保证 `id` 一致性和 `version` 的一致性。
+增量恢复覆盖的表由 `ImportBackupUseCase.MERGE_TABLES` 维护。

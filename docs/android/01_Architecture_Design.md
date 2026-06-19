@@ -1,80 +1,208 @@
 # Flux Android - 核心架构设计文档
 
-## 1. 架构愿景与目标
+## 1. 架构目标
 
-Flux 是一个“本地优先”的个人效率与生活记录系统。在向 Android 平台迁移和原生化开发的过程中，架构设计必须坚守以下核心目标：
-- **本地优先与数据绝对掌控**：所有核心业务必须在无网环境下完全可用，所有数据（结构化数据与附件二进制）优先落盘本地存储。
-- **高响应性与离线能力**：UI 必须是响应式的，任何数据变更需即时反映在界面上，无网络加载的割裂感。
-- **高内聚低耦合的单体化演进**：虽是单机应用，但需严格按照功能域（日记、待办、日历、附件）进行模块化隔离，为后续可能的多端同步打好地基。
+Flux 是一个本地优先的个人记录与日程管理应用。Android 端架构围绕四个目标设计：
 
-## 2. 核心技术栈选型
+- **离线可用**：日记、待办、日历、附件和回收站在无网环境下可读写。
+- **数据可控**：结构化数据和附件都保存在 App 私有目录，备份包结构清晰可检查。
+- **状态响应式**：数据库和设置变化通过 Flow / StateFlow 进入 UI，减少手动刷新。
+- **边界清晰**：虽然当前是单模块 Android App，仍按 feature、domain、data、core 划分职责。
 
-针对 Android 原生开发，为兼顾现代开发范式与长期可维护性，确立以下技术选型：
+## 2. 技术选型
 
-| 领域 | 核心技术 | 选型原因 |
+| 领域 | 技术 | 用途 |
 | :--- | :--- | :--- |
-| **开发语言** | Kotlin | 现代语言特性，协程支持，Android 官方推荐 |
-| **UI 框架** | Jetpack Compose | 声明式 UI，便于构建复杂状态的交互（如日历多图层显示），更易实现设计规范中的“组件化”思想 |
-| **架构模式** | MVVM / MVI | 配合 Compose 强绑定的状态驱动 UI (StateFlow)，使得状态流转可控 |
-| **本地存储** | Room Database | 官方 SQLite ORM 库，完美支持 FTS5 全文检索及 Flow 响应式查询 |
-| **异步/响应式** | Coroutines & Flow | 用于数据库操作、文件系统读写和 UI 状态流转，替代传统的回调和 RxJava |
-| **依赖注入** | Hilt | 降低模块间耦合，统一管理单例（如 Database 实例、文件管理器、各域的 Repository） |
-| **依赖管理** | Gradle (Kotlin DSL) | `build.gradle.kts` 已配置，更好的类型推断和配置代码化 |
+| 语言 | Kotlin | Android 主开发语言 |
+| UI | Jetpack Compose、Material 3 | 声明式界面、响应式状态渲染 |
+| 导航 | Navigation Compose、NavigationSuiteScaffold | 主路由和自适应导航 |
+| 本地存储 | Room / SQLite | 结构化数据、schema 迁移、响应式查询 |
+| 依赖注入 | Hilt | Repository、UseCase、Database、系统服务注入 |
+| 异步 | Coroutines / Flow | 数据库、文件、网络和 UI 状态流 |
+| 后台任务 | WorkManager | ICS 订阅周期同步 |
+| 提醒 | AlarmManager、BroadcastReceiver、通知 | 日记、待办、事件提醒 |
+| 小部件 | Glance App Widgets | 待办列表和月历小部件 |
+| 网络 | OkHttp | WebDAV 备份和 ICS 下载 |
 
-## 3. 核心分层架构
+## 3. 分层模型
 
-架构将遵循现代 Android 应用架构指南（Modern Android Architecture），分为 **UI 层**、**领域层（Domain Layer）** 和 **数据层（Data Layer）**。
-
-### 3.1 表现层 / UI 层 (Presentation Layer)
-- **职责**：只负责将状态（State）渲染到屏幕，并将用户意图（Intent/Event）传递给 ViewModel。
-- **组件**：
-  - **Screen / Composables**：纯 UI 呈现，不包含业务逻辑。
-  - **ViewModel**：管理 UI State，处理用户输入，调用 Domain 层/Data 层进行业务操作。通过 `StateFlow` 将单一且不可变的状态暴露给 UI。
-
-### 3.2 领域层 (Domain Layer) - 建议保留
-- **职责**：封装复杂或跨模块的业务规则。例如：“恢复一条删除的日记时，如果同日已有记录，需进行增量合并” —— 这种跨表、高一致性要求的逻辑不应放在 ViewModel，而应放在 UseCase。
-- **组件**：
-  - **UseCases (Interactors)**：例如 `RestoreDiaryUseCase`、`ToggleHolidayUseCase`。
-
-### 3.3 数据层 (Data Layer)
-- **职责**：提供对应用数据的完全访问权限。负责读取、写入以及保证本地数据的一致性。
-- **组件**：
-  - **Repositories**：向外暴露数据流（如 `Flow<List<Diary>>`），屏蔽数据来源细节。
-  - **Data Sources**：
-    - `LocalRoomDataSource` (结构化数据)
-    - `FileAttachmentDataSource` (附件二进制文件)
-
-## 4. 模块划分 (Modularization)
-
-为防止单体应用演变为“大泥球”，工程结构应按“特性（Feature）”而非“层（Layer）”进行拆分：
+当前工程采用单模块内的分层结构：
 
 ```text
-app/src/main/java/com/flux/
-  ├── core/                 # 核心基础库
-  │   ├── database/         # Room 数据库配置与通用 Dao
-  │   ├── designsystem/     # 全局 Compose Theme、Color、Typography 和通用组件
-  │   ├── model/            # 跨模块通用实体 (如通用异常)
-  │   └── util/             # 文件管理、时间格式化、扩展函数
-  ├── feature/
-  │   ├── diary/            # 日记业务域：包括写日记、标签筛选、回收站
-  │   ├── todo/             # 待办业务域：待办列表、子任务、历史
-  │   ├── calendar/         # 日历业务域：聚合视图、节假日管理
-  │   ├── attachment/       # 附件管理域：文件扫描、引用清理
-  │   └── settings/         # 系统设置、数据导出
+Presentation
+  -> Feature Gateway / Domain
+  -> Core UseCase / Repository
+  -> Room / File / System Service
 ```
 
-## 5. 关键技术方案
+| 层级 | 典型位置 | 职责 |
+| :--- | :--- | :--- |
+| Presentation | `feature/*/presentation` | Compose 页面、组件、ViewModel、UiState |
+| Feature Domain | `feature/*/domain` | 页面需要的网关接口、feature 级模型和边界 |
+| Feature Data | `feature/*/data` | gateway 默认实现、Hilt 绑定、调用 core 能力 |
+| Core Domain | `core/domain/*` | 跨 feature 的 use case，例如恢复、导出、备份、日历聚合 |
+| Core Data | `core/database/*` | Room Database、Dao、Entity、Repository |
+| System / Util | `core/reminder`、`core/sync`、`core/util`、`core/settings` | 提醒、WebDAV、ICS、路径、偏好设置 |
 
-### 5.1 数据响应流 (Reactive Data Flow)
-由于采用 Room + Flow，所有的列表展示（日记列表、日历事件聚合）不再需要手动刷新。数据库表发生变更时，Room 会自动向监听该查询的 Flow 发射新数据。ViewModel 通过 `stateIn` 操作符将其转化为 `StateFlow`，Compose UI 自动重组。这完美契合了“日历图层切换不改变数据，只改变 UI 展现”的原则。
+ViewModel 不直接拼复杂 SQL，也不直接操作系统服务；这类能力通过 gateway、repository 或 use case 间接完成。
 
-### 5.2 全文检索实现方案
-继续沿用原有 SQLite 的 FTS5 特性。在 Room 中，通过 `@Fts5` 注解创建虚拟表，将 `DiaryEntity` 关联。搜索时，通过 ViewModel 向 Dao 传递关键词， Dao 执行 `MATCH` 语句并返回 `Flow<List<Diary>>`，搜索结果将做到字符输入级别的毫秒级响应。
+## 4. 目录结构
 
-### 5.3 附件存储与弱一致性模型
-- **存储机制**：使用 Android 的 `Context.getExternalFilesDir()` 或内部存储存放。将附件按 `YYYY/MM/UUID.ext` 规则归档。
-- **引用机制**：数据库内不建附件强关系表。依赖领域层的 `AttachmentScannerUseCase`，通过正则表达式读取 `content_md` 字段中的 Markdown 引用，动态计算附件的“被引用状态”供“附件管理”模块使用。
+```text
+app/src/main/java/com/example/flux
+├── FluxApplication.kt
+├── MainActivity.kt
+├── app/navigation
+├── core
+│   ├── database
+│   │   ├── dao
+│   │   ├── entity
+│   │   ├── repository
+│   │   └── di
+│   ├── domain
+│   │   ├── calendar
+│   │   ├── diary
+│   │   ├── settings
+│   │   ├── todo
+│   │   └── trash
+│   ├── reminder
+│   ├── settings
+│   ├── sync
+│   ├── ui
+│   └── util
+├── feature
+│   ├── calendar
+│   ├── diary
+│   ├── search
+│   ├── settings
+│   ├── todo
+│   ├── trash
+│   └── widget
+└── ui
+    ├── component
+    └── theme
+```
 
-### 5.4 软删除机制的全局统一
-在业务表（如 `diaries`, `todos`, `calendar_events`）引入 `deleted_at: Long?` 字段。
-Room Dao 在常规查询（获取活跃列表）时统一追加 `WHERE deleted_at IS NULL` 条件；在回收站功能中则查询 `deleted_at IS NOT NULL` 的数据。所有“删除”动作本质上是执行一次 `UPDATE` 操作。
+`feature/trash` 同时承载回收站和附件管理。`feature/search` 是全局搜索入口。`feature/widget` 承载 Glance 小部件。
+
+## 5. 应用启动
+
+启动流程：
+
+```text
+FluxApplication.onCreate()
+-> DataDirectoryInitializer.ensure()
+-> normalizeExistingPrepackagedDatabase()
+-> IcsSyncWorker.schedule()
+-> ReminderRescheduler.rescheduleAll()
+
+MainActivity.onCreate()
+-> 请求 Android 13+ 通知权限
+-> setContent { FluxAppNavHost(...) }
+```
+
+`MainActivity` 只保留启动和 Compose 承载职责；页面路由集中在 `app/navigation`。
+
+## 6. 导航架构
+
+一级目的地定义在 `AppDestinations`：
+
+- `DIARY`
+- `CALENDAR`
+- `TODO`
+- `SETTINGS`
+
+二级路由定义在 `AppRoutes`：
+
+- 日记编辑器
+- 待办详情
+- 回收站
+- 附件管理
+- ICS 日历订阅设置
+- 天气 App 绑定
+
+全局搜索由主 Scaffold 持有，作为底部弹层覆盖当前目的地。搜索结果点击后由结果类型决定跳转路径。
+
+## 7. 数据响应流
+
+Room Dao 暴露 Flow，Repository 和 Gateway 继续组合数据，ViewModel 通过 `stateIn` 或 `combine` 输出 `StateFlow<UiState>`。
+
+典型链路：
+
+```text
+Room Dao Flow
+-> Repository / UseCase
+-> Feature Gateway
+-> ViewModel UiState
+-> Compose collectAsState()
+```
+
+日历图层开关、搜索 scope、筛选项等属于 UI 状态；日记、待办、事件、附件 metadata 属于业务事实。
+
+## 8. 数据与文件
+
+App 私有数据目录：
+
+```text
+files/
+└── data/
+    ├── flux.db
+    └── attachments/
+```
+
+`DataPaths` 统一维护数据库、数据目录和附件目录路径。备份导出会先执行 WAL checkpoint，然后将 `data/` 打包为 zip。
+
+附件不嵌入数据库正文。日记正文保存 Markdown 引用，附件管理通过扫描附件目录和 Markdown 引用维护 `attachment_metadata`。
+
+## 9. 搜索
+
+当前不依赖 Android SQLite 的可选 FTS 模块。日记搜索使用 App 维护的 `diary_search_index` 普通表，覆盖日期、时间、标题、正文、心情、天气、位置和标签。
+
+全局搜索则汇总日记、待办、事件和附件，在内存中过滤并按日期排序。这个方案足够覆盖当前个人数据规模，同时避免引入外部搜索服务。
+
+## 10. 提醒
+
+提醒能力位于 `core/reminder`：
+
+| 类 | 职责 |
+| :--- | :--- |
+| `ReminderPlanner` | 根据日记、待办、事件计算下一次触发时间 |
+| `ReminderScheduler` | 用 AlarmManager 安排或取消提醒 |
+| `ReminderReceiver` | 接收 alarm 并展示通知 |
+| `ReminderRescheduler` | 启动、开机、更新、时间/时区变化后重排提醒 |
+
+Repository 在新增、更新、恢复、删除和完成业务对象时同步安排或取消提醒。
+
+## 11. ICS 与 WebDAV
+
+ICS 日历订阅：
+
+- `IcsSyncWorker` 每小时同步一次启用订阅。
+- `IcsCalendarDownloader` 使用条件请求下载。
+- `IcsCalendarParser` 解析 VEVENT。
+- `IcsCalendarSyncUseCase` 将订阅事件写入 `calendar_events`。
+
+WebDAV 云备份：
+
+- 只用于手动备份和恢复。
+- 固定使用坚果云 WebDAV 地址。
+- 远端目录为 `FluxBackups`。
+- 本地备份和云备份使用同一 zip 格式。
+
+## 12. 软删除与恢复
+
+日记、待办和事件都使用 `deleted_at` 表示软删除。常规列表只显示活跃数据，回收站读取删除数据。
+
+恢复规则：
+
+- 日记恢复可能与当天活跃日记合并。
+- 待办恢复后重新进入待办列表。
+- 事件恢复后重新进入日历聚合。
+- 恢复后如有有效提醒配置，会重新安排提醒。
+
+## 13. 演进原则
+
+- 共享规则进入 `core/domain`，页面独有逻辑留在 feature 内。
+- 新增数据库字段必须补充 Room schema、迁移和文档。
+- WebDAV 继续保持备份职责，不重新混入多端实时同步语义。
+- 大型页面继续优先拆组件和 UiState，避免 ViewModel 与 Screen 重新变胖。

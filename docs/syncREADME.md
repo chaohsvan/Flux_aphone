@@ -291,7 +291,7 @@ GET      我的坚果云/FluxBackups/FluxBackup_<timestamp>.zip
 
 | 提示 | 说明 |
 | :--- | :--- |
-| `请先在多端同步中填写 WebDAV 账号和应用密码` | 旧提示文案，后续应改为“请先配置 WebDAV 账号和应用密码” |
+| `请先配置 WebDAV 账号和应用密码` | WebDAV 账号或应用密码为空 |
 | `云端没有可恢复的备份` | `FluxBackups` 下没有 `latest_backup.json`，也没有 `FluxBackup_*.zip` |
 | `WebDAV 账号或应用密码验证失败` | 401，账号或应用密码错误 |
 | `WebDAV 无权限访问云备份目录` | 403，目录不可写或权限不足 |
@@ -338,5 +338,4 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
 - 云备份页面展示历史备份列表。
 - 支持选择指定备份版本恢复。
 - 自动清理旧备份，例如保留最近 N 个版本。
-- 修正旧错误文案中的“多端同步”字样。
 - 增加 WebDAV mock/integration test。

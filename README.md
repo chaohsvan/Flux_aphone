@@ -1,33 +1,30 @@
-## 许可证
-
-本项目采用 GNU General Public License v3.0 许可证开源，详见 [LICENSE](LICENSE)。
-
-Copyright (C) 2026 chaohsvan
-
 # Flux
-（基于vibe coding）
 
-Flux 是一个本地优先的 Android 个人记录与日程管理应用。它把日记、待办、日历和备份放在同一个轻量工作流里，适合把日常记录、计划安排和个人数据长期保存在自己的设备上。
+（基于 vibe coding）
+
+Flux 是一个本地优先的 Android 个人记录与日程管理应用。它把日记、待办、日历、提醒、附件、回收站和备份放在同一个轻量工作流里，适合把日常记录、计划安排和个人数据长期保存在自己的设备上。
 
 ## 功能概览
 
-- 日记：支持 Markdown 内容、心情、天气、地点、标签、附件和全文检索。
-- 待办：支持项目、标签、子任务、优先级、截止日期、完成历史和软删除。
-- 日历：提供月视图、周视图、日视图和季度视图，可叠加日记、待办、事件、节假日、订阅日历和回收站数据。
-- 小部件：提供待办列表小部件和日历月视图小部件，主题跟随系统。应用退出后，小部件需要点击右上角刷新图标才会重新载入最新数据库内容。
-- 备份：支持本地全量备份导入导出，并支持通过 WebDAV/坚果云进行云端全量备份与恢复。
-- 设置：包含主题、每周开始日、提醒音、备份、附件和数据管理等入口。
+- 日记：支持 Markdown 内容、心情、天气、地点、标签、收藏、附件、提醒和本地搜索。
+- 待办：支持项目、子任务、优先级、开始时间、截止时间、提醒、重要标记、完成历史和软删除。
+- 日历：提供月视图、周视图、日视图和季度视图，可叠加日记、待办、事件、节假日、ICS 订阅日历和回收站数据。
+- 全局搜索：覆盖日记、待办、日历事件和附件，搜索结果可直接跳转到对应上下文。
+- 提醒：日记、待办和日历事件可设置提前提醒；应用启动、开机、应用更新、时间或时区变化后会重排提醒。
+- 小部件：提供待办列表小部件和日历月视图小部件，主题跟随系统，并支持手动刷新。
+- 备份：支持本地备份导入导出，并支持通过 WebDAV/坚果云进行云端全量备份与恢复；恢复可选择全量替换或增量合并。
+- 设置：包含 WebDAV 云备份配置、天气 App 绑定、ICS 日历订阅、附件管理、回收站、每周开始日、提醒音和提醒权限等入口。
 
 ## 技术栈
 
 - Kotlin
-- Jetpack Compose
-- Room / SQLite / FTS5
+- Jetpack Compose / Material 3
+- Room / SQLite
 - Hilt
 - Coroutines / Flow
 - Navigation Compose
 - Glance App Widgets
-- WorkManager / BroadcastReceiver
+- WorkManager / BroadcastReceiver / AlarmManager
 - OkHttp / WebDAV
 - Gradle Kotlin DSL
 
@@ -35,23 +32,33 @@ Flux 是一个本地优先的 Android 个人记录与日程管理应用。它把
 
 ```text
 app/src/main/java/com/example/flux
-├── core                 # 数据库、备份、同步、通知、系统能力封装
-├── data                 # 仓库实现和数据访问
-├── feature              # 按业务功能拆分的页面、领域模型和网关
-├── model                # 共享模型
-├── ui                   # 通用 Compose UI 和主题
-├── widget               # Android 小部件
-└── worker               # 后台任务
+├── FluxApplication.kt       # 应用启动、数据目录初始化、ICS Worker 和提醒重排
+├── MainActivity.kt          # Compose 承载、通知权限请求、启动目的地处理
+├── app/navigation           # 主导航、路由和自适应导航容器
+├── core                     # 数据库、Repository、UseCase、提醒、同步、设置和工具
+├── feature                  # diary / calendar / todo / settings / trash / search / widget
+└── ui                       # 通用 Compose 组件和主题
 
 docs
-├── android              # 架构、数据库、UI 和重构文档
-├── featuresREADME.md    # 功能说明
-└── syncREADME.md        # 备份与云端恢复说明
+├── android                  # 架构、数据库、UI 和重构文档
+├── featuresREADME.md        # 功能说明
+├── refdesignREADME.md       # 产品与体验参考
+├── reftechnicalREADME.md    # Android 技术实现说明
+└── syncREADME.md            # WebDAV 备份与云端恢复说明
 ```
 
 ## 构建与测试
 
-本项目使用 Android Studio 自带的 JBR 作为 JDK。Windows PowerShell 下可使用：
+本项目使用 Android Studio 自带的 JBR 作为 JDK。
+
+macOS / Linux:
+
+```bash
+./gradlew assembleDebug
+./gradlew testDebugUnitTest
+```
+
+Windows PowerShell:
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
@@ -69,11 +76,18 @@ app/build/outputs/apk/debug/app-debug.apk
 
 Flux 的数据以 Room 数据库为核心，数据库 schema 通过迁移维护。删除类数据默认采用软删除策略，因此日历和回收站仍然可以追踪这些记录的状态。
 
-当前备份与恢复采用全量方案：每次备份都会打包数据库和附件数据，每次恢复也会按完整备份包导入。这个方式简单可靠，适合小到中等规模的数据；但它不是增量同步，**对大附件和大量附件不友好**，备份包会变大，上传、下载和恢复耗时也会随之增加。
+App 私有数据目录结构：
 
-云端备份使用 WebDAV 目录保存备份文件。从云端导入备份后，应用会提示重启，以确保数据库、缓存和界面状态重新加载到最新数据。
+```text
+files/
+└── data/
+    ├── flux.db
+    └── attachments/
+```
 
-更详细的备份说明见 [docs/syncREADME.md](docs/syncREADME.md)。
+本地备份和 WebDAV 云备份使用同一套 zip 格式，内容为完整 `data/` 目录。全量恢复会用备份包替换本机 `data/`，增量恢复会合并备份数据库和附件文件。恢复前会先保留本机当前 `data/` 副本。
+
+当前 WebDAV 只作为手动云备份空间使用，不做多端自动同步、冲突合并或附件级双向增量同步。更详细的备份说明见 [docs/syncREADME.md](docs/syncREADME.md)。
 
 ## 待改进
 
@@ -85,26 +99,26 @@ com.example.flux
 
 后续如果要正式发布，需要替换为最终应用包名，并同步检查 `namespace`、`applicationId`、备份路径、第三方服务配置和签名配置。
 
-应用图标资源已经放入 Android 各密度目录。原始图标源文件位于：
-
-```text
-app/src/main/res/drawable-nodpi/launcher_icon_source.png
-```
-
 后续还可以继续改进：
 
-- 应用名称、包名和版本号。
-- Release 签名和混淆配置。
-- 启动图标在主流桌面上的裁切效果。
-- WebDAV 备份恢复流程。
-- 全量备份对大附件和大量附件不友好，可考虑增量备份、附件分片或附件单独同步。
+- 应用名称、包名、版本号、签名和混淆配置。
+- 通知、精确闹钟、网络、文件分享和备份相关权限说明。
+- WebDAV 历史备份列表、指定版本恢复和旧备份清理。
+- 大附件和大量附件场景下的备份体验，例如附件分片或附件单独同步。
 - 小部件在浅色、深色和系统动态主题下的显示效果。
 
 ## 参考文档
 
 - [功能说明](docs/featuresREADME.md)
+- [Android 技术实现](docs/reftechnicalREADME.md)
 - [Android 架构设计](docs/android/01_Architecture_Design.md)
 - [数据库设计](docs/android/02_Database_Design.md)
 - [UI/UX 指南](docs/android/03_UI_UX_Guidelines.md)
 - [重构 TODO](docs/android/04_Refactor_TODO.md)
 - [备份与云端恢复](docs/syncREADME.md)
+
+## 许可证
+
+本项目采用 GNU General Public License v3.0 许可证开源，详见 [LICENSE](LICENSE)。
+
+Copyright (C) 2026 chaohsvan
